@@ -3,7 +3,7 @@
 // estas colecciones; las pantallas nunca calculan por su cuenta.
 
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '2.3.0';
+export const APP_VERSION = '2.3.1';
 
 /** Reglas comerciales vigentes. Cada comisión guarda una copia de las reglas
  *  aplicadas (rulesSnapshot), así un cambio futuro no altera el historial. */

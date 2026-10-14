@@ -107,16 +107,16 @@ function hero(s, d, cos) {
     const co = cos[0];
     const g = d.per[co].goal.sales;
     if (g) {
-      pct = Math.min(100, (d.per[co].salesTotal / g) * 100);
+      pct = Math.min(100, (d.per[co].salesNet / g) * 100);
       ringTop = `${Math.floor(pct)}%`;
       ringBottom = 'de la meta';
-      chip = pct >= 100 ? `${icon('sparkles', { size: 14 })} Meta cumplida` : `${icon('trend', { size: 14 })} Faltan ${money(Math.max(0, g - d.per[co].salesTotal))}`;
+      chip = pct >= 100 ? `${icon('sparkles', { size: 14 })} Meta cumplida` : `${icon('trend', { size: 14 })} Faltan ${money(Math.max(0, g - d.per[co].salesNet))}`;
     }
   }
   const R = 46;
   const L = Math.round(2 * Math.PI * R * 100) / 100;
   const ring = pct === null ? '' : `<div class="ring" aria-label="Avance ${Math.floor(pct)} %"><svg width="108" height="108" viewBox="0 0 108 108"><defs><linearGradient id="ringGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1d79e"/><stop offset="1" stop-color="#b8893b"/></linearGradient></defs><circle class="track" cx="54" cy="54" r="${R}" fill="none" stroke-width="9"/><circle class="bar" cx="54" cy="54" r="${R}" fill="none" stroke-width="9" stroke-linecap="round" stroke-dasharray="${L}" style="stroke-dashoffset:${L}" data-ring="${pct}"/></svg><div class="ring-txt"><div><b>${ringTop}</b><small>${ringBottom}</small></div></div></div>`;
-  return `<section class="hero" aria-label="Resumen de comisiones"><div class="hero-top"><div><div class="hero-label">Comisión de ${esc(periodLabel(d.period).split(' ')[0])}</div><div class="hero-amount" data-count="${generated}">${money(generated)}</div><div class="hero-sub">Pendiente de liquidar <b>${money(pending)}</b> · Vendido <b>${money(d.total.salesTotal)}</b></div></div>${ring}</div>${chip ? `<div class="hero-foot"><span class="hero-chip">${chip}</span></div>` : ''}</section>`;
+  return `<section class="hero" aria-label="Resumen de comisiones"><div class="hero-top"><div><div class="hero-label">Comisión de ${esc(periodLabel(d.period).split(' ')[0])}</div><div class="hero-amount" data-count="${generated}">${money(generated)}</div><div class="hero-sub">Pendiente de liquidar <b>${money(pending)}</b> · Vendido antes de IVA <b>${money(d.total.salesNet)}</b></div></div>${ring}</div>${chip ? `<div class="hero-foot"><span class="hero-chip">${chip}</span></div>` : ''}</section>`;
 }
 
 export function renderHome() {
@@ -135,10 +135,10 @@ export function renderHome() {
   const goalCards = cos.map((co) => {
     const p = d.per[co];
     const g = p.goal;
-    const pctS = g.sales ? (p.salesTotal / g.sales) * 100 : 0;
+    const pctS = g.sales ? (p.salesNet / g.sales) * 100 : 0;
     const pctC = g.collection ? (p.collected / g.collection) * 100 : 0;
     return `<article class="goal-card"><h3>${s.companies[co].icon} ${esc(s.companies[co].name)}</h3>
-      <div class="goal-line"><span>Ventas del mes</span><b>${money(p.salesTotal)}</b></div>${g.sales ? `${progress(pctS, pctS >= 100 ? 'ok' : '')}<small class="muted">Meta ${money(g.sales)} · ${pctS.toFixed(0)} %</small>` : '<small class="muted">Sin meta de ventas · <a href="#/metas">definir</a></small>'}
+      <div class="goal-line"><span>Ventas del mes (antes de IVA)</span><b>${money(p.salesNet)}</b></div>${g.sales ? `${progress(pctS, pctS >= 100 ? 'ok' : '')}<small class="muted">Meta ${money(g.sales)} · ${pctS.toFixed(0)} %</small>` : '<small class="muted">Sin meta de ventas · <a href="#/metas">definir</a></small>'}
       <div class="goal-line"><span>Recaudado del mes</span><b>${money(p.collected)}</b></div>${g.collection ? `${progress(pctC, pctC >= 100 ? 'ok' : '')}<small class="muted">Meta ${money(g.collection)} · ${pctC.toFixed(0)} %</small>` : '<small class="muted">Sin meta de recaudo</small>'}
     </article>`;
   }).join('');
@@ -150,7 +150,7 @@ export function renderHome() {
   ${alerts.join('')}
   <div class="quick-tiles"><button class="quick-tile" data-act="quick-log">${icon('zap')}Registro rápido</button><button class="quick-tile" data-act="new-doc" data-kind="cotizacion">${icon('quote')}Cotizar</button><button class="quick-tile" data-act="pay">${icon('cash')}Cobro</button></div>
   <div class="stats">
-    ${stat('Vendido este mes', money(d.total.salesTotal), `Antes de IVA: ${money(d.total.salesNet)}`)}
+    ${stat('Vendido este mes (antes de IVA)', money(d.total.salesNet), `Con IVA: ${money(d.total.salesTotal)}`)}
     ${stat('Recaudado este mes', money(d.total.collected), 'Pagos recibidos')}
     ${stat('Cartera por cobrar', money(d.total.receivable), `<a href="#/cartera">Ver cartera</a>`)}
     ${stat('Cartera vencida', money(d.total.overdue), `${d.total.overdueClients} cliente(s) atrasado(s)`, d.total.overdue ? 'warn' : '')}

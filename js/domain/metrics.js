@@ -93,7 +93,7 @@ export function monthlySeries(s, companyId, months = 6, today = localDate()) {
     const d = new Date(y, m - 1 - i, 1);
     const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const pm = periodMetrics(s, companyId, period);
-    out.push({ period, sales: pm.salesTotal, collected: pm.collected });
+    out.push({ period, sales: pm.salesNet, collected: pm.collected });
   }
   return out;
 }
