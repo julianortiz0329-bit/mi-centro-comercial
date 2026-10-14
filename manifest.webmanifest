@@ -1,0 +1,23 @@
+{
+  "name": "Mi Centro Comercial",
+  "short_name": "Centro Comercial",
+  "description": "CRM de El Puntazo y Frutos del Nogal: clientes, ventas, cartera, cobros y comisiones.",
+  "id": "./",
+  "start_url": "./#/hoy",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f2a22",
+  "theme_color": "#1f4d3e",
+  "lang": "es-CO",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Registrar pago", "url": "./#/cartera", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Agenda", "url": "./#/agenda", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
