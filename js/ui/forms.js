@@ -4,21 +4,50 @@ import { parseDecimal, parsePesos } from '../core/money.js';
 import { addActivity, addTask, confirmWhatsApp } from '../domain/activities.js';
 import { createClient, searchClients, updateClient } from '../domain/clients.js';
 import { createSaleWithPayment } from '../domain/commands.js';
-import { computeLine, computeTotals, convertDocument, pendingDispatch, registerDispatch, updateDraftDocument } from '../domain/documents.js';
+import { changeStatus, computeLine, computeTotals, convertDocument, pendingDispatch, registerDispatch, updateDraftDocument, voidSale } from '../domain/documents.js';
 import { saleBalance, isActiveSale } from '../domain/ledger.js';
-import { registerPayment, allocatePayment, suggestAllocation } from '../domain/payments.js';
+import { registerPayment, allocatePayment, reversePayment, suggestAllocation } from '../domain/payments.js';
 import { pricePerContent, saveProduct, SALE_UNITS, withIva, withoutIva } from '../domain/products.js';
 import { lastPriceFor } from '../domain/pricing.js';
 import { simulateSaleCommission } from '../domain/commissions.js';
 import { ACTIVE_COMPANY_IDS, ACTIVITY_TYPES, CLIENT_STATUSES, DOC_KINDS, PAYMENT_METHODS } from '../domain/schema.js';
 import { fillTemplate, normalizePhone, smsLink, telLink, templateVars, waLink } from '../domain/whatsapp.js';
-import { getState } from '../store/store.js';
-import { $, $$, bindMoneyPreviews, esc, exec, field, money, openModal, readMoney, requestId, toast } from './dom.js';
+import { getState, run } from '../store/store.js';
+import { $, $$, bindMoneyPreviews, confirmDialog, errorMessage, esc, exec, field, haptic, money, openModal, readMoney, requestId, toast } from './dom.js';
 import { navigate, ui } from './state.js';
 
 const S = () => getState();
 const coOptions = (withEmpty = false) => [...(withEmpty ? [{ value: '', label: 'Selecciona…' }] : []), ...ACTIVE_COMPANY_IDS.map((id) => ({ value: id, label: S().companies[id].name }))];
 const defaultCompany = () => (ui.scope !== 'todas' ? ui.scope : '');
+const UNDO_REASON = 'Deshecho justo después de registrarlo (botón Deshacer)';
+
+/** Aviso con "Deshacer". Nada se borra: se reversa o anula con su motivo. */
+function offerUndo(message, undo, done = 'Listo, se deshizo') {
+  haptic(12);
+  toast(message, 'ok', {
+    action: {
+      label: 'Deshacer',
+      onClick: async () => {
+        try {
+          await undo();
+          toast(done);
+        } catch (e) {
+          toast(errorMessage(e), 'error');
+        }
+      },
+    },
+  });
+}
+
+async function undoDocument(docId) {
+  const s = S();
+  const doc = s.documents.find((d) => d.id === docId);
+  if (!doc) return;
+  if (doc.kind === 'venta') {
+    for (const p of s.payments.filter((x) => x.status === 'activo' && x.allocations.some((a) => a.documentId === doc.id))) await run(reversePayment, { paymentId: p.id, reason: UNDO_REASON });
+    await run(voidSale, { documentId: doc.id, reason: UNDO_REASON });
+  } else await run(changeStatus, { documentId: doc.id, status: 'cancelado', reason: UNDO_REASON });
+}
 
 /* ---------- Selector de cliente con búsqueda ---------- */
 export function clientPicker({ selectedId = '', label = 'Cliente', locked = false, required = true }) {
@@ -103,7 +132,7 @@ function quickClientForm({ name = '', companyId = '', onCreated }) {
       try {
         c = await exec(createClient, data, { success: 'Cliente creado' });
       } catch (e) {
-        if (e.code === 'duplicate' && confirm(`${e.message}\n\n¿Es un cliente distinto y quieres crearlo de todas formas?`)) c = await exec(createClient, { ...data, allowDuplicate: true }, { success: 'Cliente creado' });
+        if (e.code === 'duplicate' && (await confirmDialog({ title: 'Posible cliente repetido', message: `${e.message} ¿Es un cliente distinto y quieres crearlo de todas formas?`, confirmText: 'Crear de todas formas' }))) c = await exec(createClient, { ...data, allowDuplicate: true }, { success: 'Cliente creado' });
         else return false;
       }
       if (!c) return false;
@@ -174,7 +203,7 @@ export function clientForm(existing = null) {
           const c2 = await exec(createClient, { ...data, requestId: rid }, { success: 'Cliente creado' });
           if (c2) navigate(`#/cliente/${c2.id}`);
         } catch (e) {
-          if (e.code === 'duplicate' && confirm(`${e.message}\n\n¿Es un cliente distinto y quieres crearlo de todas formas?`)) {
+          if (e.code === 'duplicate' && (await confirmDialog({ title: 'Posible cliente repetido', message: `${e.message} ¿Es un cliente distinto y quieres crearlo de todas formas?`, confirmText: 'Crear de todas formas' }))) {
             const c3 = await exec(createClient, { ...data, requestId: rid, allowDuplicate: true }, { success: 'Cliente creado' });
             if (c3) navigate(`#/cliente/${c3.id}`);
           } else return false;
@@ -448,7 +477,13 @@ export function documentForm(kind, opts = {}) {
         else {
           doc = await exec(convertDocument, { documentId: src.id, toKind: 'pedido', lines: ls, date: base.date, time: base.time, notes: base.notes, termDays, requestId: rid }, { success: 'Pedido creado' });
         }
-      } else doc = await exec(createSaleWithPayment, { ...base, payment }, { success: `${DOC_KINDS[kind]} registrada`.replace('Pedido registrada', 'Pedido registrado') });
+      } else {
+        doc = await exec(createSaleWithPayment, { ...base, payment });
+        if (doc) offerUndo(`${DOC_KINDS[kind]} ${doc.number} registrad${kind === 'pedido' ? 'o' : 'a'}`, async () => {
+          await undoDocument(doc.id);
+          navigate('#/ventas');
+        }, kind === 'venta' ? 'Venta anulada (queda en el historial)' : 'Documento cancelado (queda en el historial)');
+      }
       if (doc) navigate(`#/doc/${doc.id}`);
       else return false;
     },
@@ -497,7 +532,10 @@ export function paymentForm(opts = {}) {
           wrap.innerHTML = '<p class="muted">Este cliente no tiene saldos pendientes en esta empresa. El pago quedará sin aplicar.</p>';
           return;
         }
-        wrap.innerHTML = `<div class="alloc-head"><button type="button" class="btn btn-plain btn-small" data-auto>Distribuir automáticamente (más antiguas primero)</button></div>
+        const owed = open.reduce((a, x) => a + x.bal, 0);
+        const overdue = open.filter((x) => x.d.dueDate < localDate()).reduce((a, x) => a + x.bal, 0);
+        const chips = existing ? '' : `<div class="amt-chips" role="group" aria-label="Valores rápidos"><button type="button" data-fill="${owed}">Todo el saldo · ${money(owed)}</button>${overdue && overdue !== owed ? `<button type="button" data-fill="${overdue}">Solo lo vencido · ${money(overdue)}</button>` : ''}${owed >= 2000 ? `<button type="button" data-fill="${Math.round(owed / 2 / 100) * 100}">La mitad · ${money(Math.round(owed / 2 / 100) * 100)}</button>` : ''}</div>`;
+        wrap.innerHTML = `${chips}<div class="alloc-head"><button type="button" class="btn btn-plain btn-small" data-auto>Distribuir automáticamente (más antiguas primero)</button></div>
           <div class="alloc-list">${open.map(({ d, bal }) => `<label class="alloc"><span><b>${esc(d.number)}</b>${d.externalRef ? ` · ${esc(d.externalRef)}` : ''}<small>Vence ${formatDate(d.dueDate)} · saldo ${money(bal)}</small></span><input inputmode="numeric" data-alloc="${d.id}" data-max="${bal}" placeholder="0" value="${doc && doc.id === d.id ? bal : ''}" aria-label="Valor aplicado a ${esc(d.number)}"></label>`).join('')}</div>
           <div class="alloc-sum" data-sum></div>`;
         sumUp();
@@ -517,6 +555,16 @@ export function paymentForm(opts = {}) {
         if (e.target.name === 'companyId') render();
       });
       form.addEventListener('click', (e) => {
+        const fill = e.target.closest('[data-fill]');
+        if (fill) {
+          const amt = $('[name=amount]', form);
+          amt.value = new Intl.NumberFormat('es-CO').format(Number(fill.dataset.fill));
+          amt.dispatchEvent(new Event('input', { bubbles: true }));
+          $$('[data-fill]', form).forEach((b) => b.classList.toggle('on', b === fill));
+          haptic(8);
+          $('[data-auto]', form)?.click();
+          return;
+        }
         if (!e.target.closest('[data-auto]')) return;
         const amt = existing ? existing.amount - existing.allocations.reduce((a, x) => a + x.amount, 0) : parsePesos($('[name=amount]', form).value);
         if (!Number.isSafeInteger(amt) || amt <= 0) return toast('Escribe primero el valor recibido.', 'error');
@@ -542,11 +590,12 @@ export function paymentForm(opts = {}) {
       }
       const cid = needClient(fd);
       if (!cid) return false;
-      const p = await exec(registerPayment, { companyId: fd.get('companyId'), clientId: cid, date: fd.get('date'), time: fd.get('time'), amount: readMoney(fd, 'amount', { label: 'El valor recibido' }), method: fd.get('method'), reference: fd.get('reference'), notes: fd.get('notes'), allocations, requestId: rid }, { success: 'Pago registrado' });
+      const p = await exec(registerPayment, { companyId: fd.get('companyId'), clientId: cid, date: fd.get('date'), time: fd.get('time'), amount: readMoney(fd, 'amount', { label: 'El valor recibido' }), method: fd.get('method'), reference: fd.get('reference'), notes: fd.get('notes'), allocations, requestId: rid });
       if (!p) return false;
+      offerUndo(`Pago de ${money(p.amount)} registrado`, () => run(reversePayment, { paymentId: p.id, reason: UNDO_REASON }), 'Pago reversado (queda en el historial)');
       const client = S().clients.find((c) => c.id === p.clientId);
       const firstDoc = S().documents.find((d) => d.id === p.allocations[0]?.documentId);
-      if (normalizePhone(client.whatsapp || client.phone) && confirm('¿Quieres enviar al cliente la confirmación del abono por WhatsApp?')) {
+      if (normalizePhone(client.whatsapp || client.phone) && (await confirmDialog({ title: 'Confirmación al cliente', message: `¿Le envías a ${client.tradeName} la confirmación del abono por WhatsApp?`, confirmText: 'Sí, preparar mensaje' }))) {
         whatsappComposer({ clientId: client.id, companyId: p.companyId, template: 'abono', documentId: firstDoc?.id, paymentId: p.id });
       }
     },
@@ -577,7 +626,7 @@ export function dispatchForm(doc) {
       const d = await exec(registerDispatch, { documentId: doc.id, date: fd.get('date'), carrier: fd.get('carrier'), guide: fd.get('guide'), notes: fd.get('notes'), lines, requestId: rid }, { success: 'Despacho registrado' });
       if (!d) return false;
       const client = S().clients.find((c) => c.id === doc.clientId);
-      if (normalizePhone(client.whatsapp || client.phone) && confirm('¿Avisar al cliente del despacho por WhatsApp?')) whatsappComposer({ clientId: client.id, companyId: doc.companyId, template: 'despacho', documentId: doc.id, dispatchId: d.id });
+      if (normalizePhone(client.whatsapp || client.phone) && (await confirmDialog({ title: 'Avisar al cliente', message: `¿Le avisas a ${client.tradeName} del despacho por WhatsApp?`, confirmText: 'Sí, preparar mensaje' }))) whatsappComposer({ clientId: client.id, companyId: doc.companyId, template: 'despacho', documentId: doc.id, dispatchId: d.id });
     },
   });
 }

@@ -16,6 +16,7 @@ const S = () => getState();
 
 export function renderMore() {
   const items = [
+    ['#/personalizar', '🎨', 'Personalizar', 'Colores, modo oscuro, tu foto, inicio y bloqueo con PIN'],
     ['#/agenda', '🗓️', 'Agenda', 'Tareas, cobros, promesas, despachos y visitas'],
     ['#/productos', '📦', 'Productos y precios', 'Catálogo independiente por empresa'],
     ['#/metas', '🎯', 'Metas', 'Metas mensuales de ventas y recaudo'],

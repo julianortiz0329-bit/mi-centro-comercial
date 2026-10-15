@@ -1,24 +1,45 @@
-import { formatDate, formatDateTime } from '../core/dates.js';
+import { formatDate, formatDateTime, localDate } from '../core/dates.js';
 import { clientKpis, clientTimeline, inactiveClients, searchClients } from '../domain/clients.js';
 import { CLIENT_STATUSES, ACTIVE_COMPANY_IDS, ACTIVITY_TYPES } from '../domain/schema.js';
 import { normalizePhone, telLink } from '../domain/whatsapp.js';
 import { clientPriceList, lastOrderFor } from '../domain/pricing.js';
 import { getState } from '../store/store.js';
 import { empty, esc, money, pill, stat } from './dom.js';
+import { icon } from './icons.js';
+import { initials } from './personalize.js';
 import { ui } from './state.js';
 
 const S = () => getState();
+/** Monto corto para espacios pequeños: $ 1,2 M · $ 450.000. */
+const short = (v) => (Math.abs(v) >= 1e6 ? `$ ${(v / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M` : money(v));
 const statusTone = { activo: 'ok', prospecto: 'info', inactivo: '', bloqueado: 'danger' };
 const coChips = (c) => c.companyIds.map((co) => `<span class="co-chip co-${co}">${S().companies[co]?.icon || ''} ${esc(S().companies[co]?.short || co)}</span>`).join('');
 
 export let clientQuery = { q: '', status: '', category: '' };
 
+/** Semáforo de cartera: rojo = vencido, ámbar = saldo por vencer, verde = al día. */
+export function clientTone(k, c) {
+  if (c && (c.status === 'inactivo' || c.status === 'bloqueado')) return { key: 'off', label: c.status === 'bloqueado' ? 'Bloqueado' : 'Inactivo' };
+  if (k.overdue > 0) return { key: 'red', label: 'Con saldo vencido' };
+  if (k.balance > 0) return { key: 'amber', label: 'Saldo por vencer' };
+  return { key: 'green', label: 'Al día' };
+}
+
+/** Avatar con iniciales y color estable por cliente; el anillo marca el semáforo. */
+export function clientAvatar(c, size = 40, tone = null) {
+  let h = 0;
+  for (const ch of String(c.id || c.tradeName)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  return `<span class="c-avatar${tone ? ` t-${tone.key}` : ''}" style="--h:${hue};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.36)}px"${tone ? ` title="${esc(tone.label)}"` : ''} aria-hidden="true">${esc(initials(c.tradeName))}</span>`;
+}
+
 export function clientCard(c) {
   const k = clientKpis(S(), c.id, ui.scope === 'todas' ? null : ui.scope);
-  return `<article class="card client-card">
-    <a class="card-main" href="#/cliente/${c.id}"><div class="card-title">${esc(c.tradeName)} ${pill(CLIENT_STATUSES[c.status], statusTone[c.status])}</div>
-    <div class="card-sub">${esc([c.code, c.city, c.category].filter(Boolean).join(' · '))}</div>
-    <div class="card-meta">${coChips(c)}${k.balance ? `<span>Saldo <b>${money(k.balance)}</b></span>` : ''}${k.overdue ? `<span class="danger">Vencido ${money(k.overdue)}</span>` : ''}${k.lastPurchase ? `<span>Últ. compra ${formatDate(k.lastPurchase)}</span>` : ''}</div></a>
+  const tone = clientTone(k, c);
+  return `<article class="card client-card tone-${tone.key}">
+    <a class="card-main cc-main" href="#/cliente/${c.id}">${clientAvatar(c, 44, tone)}<div class="cc-body"><div class="card-title">${esc(c.tradeName)} ${c.status !== 'activo' ? pill(CLIENT_STATUSES[c.status], statusTone[c.status]) : ''}</div>
+    <div class="card-sub">${esc([c.city, c.category].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
+    <div class="card-meta">${coChips(c)}${k.overdue ? `<span class="danger">Vencido <b>${money(k.overdue)}</b></span>` : k.balance ? `<span>Saldo <b>${money(k.balance)}</b></span>` : '<span class="ok-text">Al día</span>'}${k.lastPurchase ? `<span>Últ. compra ${formatDate(k.lastPurchase)}</span>` : ''}</div></div></a>
     <div class="card-actions">${normalizePhone(c.whatsapp || c.phone) ? `<button class="btn btn-wa btn-xs" data-act="wa" data-client="${c.id}">WhatsApp</button><a class="btn btn-plain btn-xs" href="${telLink(c.phone || c.whatsapp)}">Llamar</a>` : ''}<button class="btn btn-plain btn-xs" data-act="activity" data-client="${c.id}">Gestión</button></div>
   </article>`;
 }
@@ -27,7 +48,7 @@ export function clientResults() {
   const s = S();
   const list = searchClients(s, { ...clientQuery, companyId: ui.scope === 'todas' ? null : ui.scope }).sort((a, b) => a.tradeName.localeCompare(b.tradeName, 'es'));
   if (!list.length) return empty('👥', clientQuery.q ? 'Sin coincidencias' : 'Aún no tienes clientes aquí', clientQuery.q ? 'Prueba con otro nombre, teléfono, ciudad, NIT o código.' : 'Agrega tu primer cliente o impórtalos desde un CSV en Datos.', '<button class="btn btn-primary" data-act="new-client">＋ Nuevo cliente</button>');
-  return `<p class="muted small">${list.length} cliente(s)</p><div class="cards">${list.slice(0, 300).map(clientCard).join('')}</div>${list.length > 300 ? '<p class="muted">Mostrando 300. Usa la búsqueda para acotar.</p>' : ''}`;
+  return `<div class="legend-row"><span class="muted small">${list.length} cliente(s)</span><span class="legend"><i class="t-green"></i>Al día<i class="t-amber"></i>Por vencer<i class="t-red"></i>Vencido</span></div><div class="cards">${list.slice(0, 300).map(clientCard).join('')}</div>${list.length > 300 ? '<p class="muted">Mostrando 300. Usa la búsqueda para acotar.</p>' : ''}`;
 }
 
 export function renderClients(params) {
@@ -70,15 +91,29 @@ export function renderClient(id) {
     return `<li><span class="tl-icon" aria-hidden="true">${tlIcon[t.kind] || '•'}</span><div><div class="tl-title">${href ? `<a href="${href}">${esc(t.title)}</a>` : esc(t.title)} ${t.companyId ? `<span class="co-chip co-${t.companyId}">${esc(s.companies[t.companyId]?.short)}</span>` : ''}</div><div class="tl-meta">${formatDateTime(t.at)} · ${detail}</div>${r.type === 'promesa' && r.promise?.status === 'pendiente' ? `<div class="ag-actions"><button class="btn btn-plain btn-xs" data-act="promise-broken" data-id="${r.id}">Marcar incumplida</button></div>` : ''}</div></li>`;
   };
   const info = [['Razón social', c.legalName], ['NIT / identificación', c.taxId], ['Contacto', c.contactName], ['Teléfono', c.phone], ['WhatsApp', c.whatsapp], ['Correo', c.email], ['Departamento', c.department], ['Ciudad', c.city], ['Dirección', c.address], ['Indicaciones', c.directions], ['Categoría', c.category], ['Etiquetas', (c.tags || []).join(', ')], ['Próxima visita', c.nextVisit ? formatDate(c.nextVisit) : ''], ['Último contacto', c.lastContact ? formatDate(c.lastContact) : ''], ['Creado', formatDate(c.createdAt)]].filter(([, v]) => v);
-  return `<div class="page-head"><div><p class="eyebrow"><a href="#/clientes">Clientes</a> · ${esc(c.code)}</p><h1>${esc(c.tradeName)}</h1><div class="card-meta">${pill(CLIENT_STATUSES[c.status], statusTone[c.status])} ${coChips(c)}</div></div><button class="btn btn-plain" data-act="edit-client" data-client="${c.id}">Editar</button></div>
+  const tone = clientTone(kAll, c);
+  const fav = favoriteProduct(s, c.id, coFilter);
+  const year = localDate().slice(0, 4);
+  const soldYear = s.documents.filter((d) => d.kind === 'venta' && d.status === 'emitida' && d.clientId === c.id && (!coFilter || d.companyId === coFilter) && d.date.startsWith(year)).reduce((a, d) => a + d.totals.net, 0);
+  const daysSince = kAll.lastPurchase ? Math.round((Date.parse(localDate()) - Date.parse(kAll.lastPurchase)) / 86400000) : null;
+  const lastOrders = perCo.map((co) => ({ co, lo: lastOrderFor(s, { clientId: c.id, companyId: co }) })).filter((x) => x.lo);
+  return `<section class="client-hero tone-${tone.key}">
+    <div class="ch-top"><a class="ch-back" href="#/clientes" aria-label="Volver a clientes">${icon('arrowRight', { size: 18 })}</a><button class="ch-edit" data-act="edit-client" data-client="${c.id}">Editar</button></div>
+    <div class="ch-id">${clientAvatar(c, 64, tone)}<div><h1>${esc(c.tradeName)}</h1><p>${esc([c.code, c.city].filter(Boolean).join(' · '))}</p><div class="card-meta">${coChips(c)}<span class="ch-tone"><i></i>${tone.label}</span></div></div></div>
+    <div class="ch-kpis"><div><small>Compró en ${year}</small><b>${short(soldYear)}</b><em>antes de IVA</em></div><div><small>Saldo</small><b>${short(kAll.balance)}</b>${kAll.overdue ? `<em class="hot">${short(kAll.overdue)} vencido</em>` : '<em>al día</em>'}</div><div><small>Última compra</small><b>${daysSince === null ? '—' : daysSince === 0 ? 'Hoy' : `${daysSince} días`}</b><em>${kAll.frequencyDays ? `compra cada ~${kAll.frequencyDays} d` : '&nbsp;'}</em></div></div>
+    ${fav ? `<p class="ch-fav">${icon('star', { size: 14 })} Su producto favorito: <b>${esc(fav)}</b></p>` : ''}
+    <div class="ch-actions">
+      <button data-act="new-doc" data-kind="pedido" data-client="${c.id}">${icon('clipboard')}<span>Pedido</span></button>
+      <button data-act="pay" data-client="${c.id}">${icon('cash')}<span>Cobro</span></button>
+      ${phoneOk ? `<button data-act="wa" data-client="${c.id}">${icon('message')}<span>WhatsApp</span></button><a href="${telLink(c.phone || c.whatsapp)}">${icon('phone')}<span>Llamar</span></a>` : `<button data-act="edit-client" data-client="${c.id}">${icon('phone')}<span>Añadir tel.</span></button>`}
+      ${lastOrders.length ? `<button data-act="repeat" data-doc="${lastOrders[0].lo.id}">${icon('repeat')}<span>Repetir</span></button>` : `<button data-act="quick-log" data-client="${c.id}">${icon('zap')}<span>Registro</span></button>`}
+    </div>
+  </section>
   <div class="action-bar">
-    ${phoneOk ? `<button class="btn btn-wa" data-act="wa" data-client="${c.id}">WhatsApp</button><a class="btn btn-plain" href="${telLink(c.phone || c.whatsapp)}">Llamar</a>` : '<span class="muted small">Sin teléfono válido para WhatsApp</span>'}
     <button class="btn btn-primary" data-act="quick-log" data-client="${c.id}">⚡ Registro rápido</button>
-    ${perCo.map((co) => { const lo = lastOrderFor(s, { clientId: c.id, companyId: co }); return lo ? `<button class="btn btn-secondary" data-act="repeat" data-doc="${lo.id}">🔁 Repetir último pedido${perCo.length > 1 ? ` (${esc(s.companies[co].short)})` : ''}</button>` : ''; }).join('')}
-    <button class="btn btn-primary" data-act="new-doc" data-kind="venta" data-client="${c.id}">＋ Venta</button>
-    <button class="btn btn-secondary" data-act="new-doc" data-kind="pedido" data-client="${c.id}">＋ Pedido</button>
+    ${lastOrders.map(({ co, lo }) => `<button class="btn btn-secondary" data-act="repeat" data-doc="${lo.id}">🔁 Repetir último pedido${perCo.length > 1 ? ` (${esc(s.companies[co].short)})` : ''}</button>`).join('')}
+    <button class="btn btn-secondary" data-act="new-doc" data-kind="venta" data-client="${c.id}">＋ Venta</button>
     <button class="btn btn-secondary" data-act="new-doc" data-kind="cotizacion" data-client="${c.id}">＋ Cotización</button>
-    <button class="btn btn-secondary" data-act="pay" data-client="${c.id}">Registrar pago</button>
     <button class="btn btn-plain" data-act="activity" data-client="${c.id}">Gestión</button>
     <button class="btn btn-plain" data-act="new-task" data-client="${c.id}">Tarea</button>
     <button class="btn btn-plain" data-act="client-status" data-client="${c.id}">Cambiar estado</button>
@@ -91,4 +126,19 @@ export function renderClient(id) {
     <section class="panel"><h2>Línea de tiempo</h2>${timeline.length ? `<ul class="timeline">${timeline.map(tlLine).join('')}</ul>` : '<p class="muted">Sin movimientos todavía.</p>'}</section>
     <section class="panel"><h2>Ficha</h2><dl class="infolist">${info.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${c.notes ? `<h3>Observaciones</h3><p class="pre">${esc(c.notes)}</p>` : ''}<p class="muted small">Tipos de gestión disponibles: ${Object.values(ACTIVITY_TYPES).join(', ')}.</p></section>
   </div>`;
+}
+
+/** Producto que más veces ha comprado (por número de pedidos/ventas). */
+function favoriteProduct(s, clientId, companyId) {
+  const count = new Map();
+  for (const d of s.documents) {
+    if (d.clientId !== clientId || (companyId && d.companyId !== companyId) || !['venta', 'pedido'].includes(d.kind) || ['anulada', 'cancelado'].includes(d.status)) continue;
+    for (const l of d.lines || []) {
+      const k = String(l.description || '').split(' · ')[0].trim();
+      if (k) count.set(k, (count.get(k) || 0) + 1);
+    }
+  }
+  let best = null;
+  for (const [k, n] of count) if (!best || n > best[1]) best = [k, n];
+  return best && best[1] >= 2 ? best[0] : null;
 }

@@ -47,6 +47,13 @@ export function parsePesos(input) {
   if (!s) return NaN;
   let neg = false;
   if (s.startsWith('-')) { neg = true; s = s.slice(1); }
+  // Atajos: "45m" / "1,2m" / "2 millones" → millones; "500k" / "300mil" → miles.
+  const short = s.match(/^(\d+(?:[.,]\d{1,3})?)(m|mm|mill|millon|millones|k|mil)$/i);
+  if (short) {
+    const n = Number(short[1].replace(',', '.'));
+    const v = Math.round(n * (/^k|mil$/i.test(short[2]) ? 1e3 : 1e6));
+    return Number.isSafeInteger(v) ? (neg ? -v : v) : NaN;
+  }
   if (!/^[\d.,]+$/.test(s)) return NaN;
   const lastComma = s.lastIndexOf(',');
   const lastDot = s.lastIndexOf('.');

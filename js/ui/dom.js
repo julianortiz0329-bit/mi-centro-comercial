@@ -1,8 +1,9 @@
 // Utilidades de interfaz: escape de HTML, modales, confirmaciones y avisos.
-import { formatCOP, parsePesos } from '../core/money.js';
+import { formatCOP, parseDecimal, parsePesos } from '../core/money.js';
 import { ConfirmRequired, DomainError } from '../domain/common.js';
 import { run } from '../store/store.js';
-import { illustration } from './icons.js';
+import { icon, illustration } from './icons.js';
+import { ui } from './state.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -13,15 +14,44 @@ export function esc(v) {
 
 export const money = formatCOP;
 
-export function toast(msg, kind = 'ok') {
+/** Vibración corta si el usuario la tiene activada. */
+export function haptic(pattern = 12) {
+  if (ui.haptics) navigator.vibrate?.(pattern);
+}
+
+/**
+ * Aviso breve. Con `action` muestra un botón (p. ej. "Deshacer") y dura más.
+ * Devuelve el elemento para poder cerrarlo.
+ */
+export function toast(msg, kind = 'ok', { action = null, duration = null } = {}) {
   const root = $('#toast-root');
+  // Solo un "Deshacer" a la vez: el nuevo reemplaza al anterior.
+  if (action) root.querySelectorAll('.toast.has-action').forEach((x) => x.remove());
   const el = document.createElement('div');
-  el.className = `toast ${kind}`;
+  el.className = `toast ${kind}${action ? ' has-action' : ''}`;
   el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
-  el.textContent = msg;
+  const txt = document.createElement('span');
+  txt.textContent = msg;
+  el.appendChild(txt);
+  const ms = duration ?? (action ? 7000 : kind === 'error' ? 6000 : 3200);
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 't-act';
+    b.innerHTML = `${icon(action.icon || 'undo', { size: 16 })}<span></span>`;
+    b.lastChild.textContent = action.label;
+    b.addEventListener('click', async () => {
+      el.remove();
+      haptic(10);
+      await action.onClick();
+    }, { once: true });
+    el.appendChild(b);
+    el.style.setProperty('--life', `${ms}ms`);
+  }
   root.appendChild(el);
   while (root.children.length > 3) root.firstElementChild.remove();
-  setTimeout(() => el.remove(), kind === 'error' ? 6000 : 3200);
+  setTimeout(() => el.remove(), ms);
+  return el;
 }
 
 export function errorMessage(e) {
@@ -42,7 +72,7 @@ export async function exec(command, input, { success } = {}) {
       const r = await run(command, attempt);
       if (success) {
         toast(success);
-        navigator.vibrate?.(12); // confirmación táctil al guardar
+        haptic(12); // confirmación táctil al guardar
       }
       return r;
     } catch (e) {
@@ -188,7 +218,7 @@ export function field({ name, label, type = 'text', value = '', required = false
   if (type === 'select') input = `<select id="${id}" name="${name}" ${req} ${attrs}>${options.map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(value ?? '') ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
   else if (type === 'textarea') input = `<textarea id="${id}" name="${name}" ${req} placeholder="${esc(placeholder)}" ${attrs}>${v}</textarea>`;
   else if (type === 'checkbox') return `<div class="field ${full ? 'full' : ''}"><label class="check"><input type="checkbox" name="${name}" ${value ? 'checked' : ''} ${attrs}> <span>${label}${help ? `<small>${help}</small>` : ''}</span></label></div>`;
-  else if (type === 'money') input = `<input id="${id}" name="${name}" type="text" inputmode="numeric" autocomplete="off" data-money ${req} value="${value === '' || value == null ? '' : esc(value)}" placeholder="${esc(placeholder || '0')}" ${attrs}>`;
+  else if (type === 'money') input = `<div class="money-wrap"><input id="${id}" name="${name}" type="text" inputmode="decimal" autocomplete="off" data-money ${req} value="${value === '' || value == null ? '' : esc(value)}" placeholder="${esc(placeholder || 'Ej. 1.200.000 o 1,2 M')}" ${attrs}></div>`;
   else input = `<input id="${id}" name="${name}" type="${type}" ${req} value="${v}" placeholder="${esc(placeholder)}" ${attrs}>`;
   return `<div class="field ${full ? 'full' : ''}"><label for="${id}">${label}${required ? ' <span class="req" aria-hidden="true">*</span>' : ''}</label>${input}${type === 'money' ? '<small class="money-preview" aria-live="polite"></small>' : ''}${help ? `<small>${help}</small>` : ''}</div>`;
 }
@@ -205,14 +235,36 @@ export function readMoney(fd, name, { required = true, label = 'El valor' } = {}
   return v;
 }
 
-/** Vista previa en vivo de campos de dinero ("$ 1.250.000"). */
+/**
+ * Vista previa en vivo de campos de dinero ("$ 1.250.000") y botones para
+ * multiplicar lo escrito por mil o por millón (45 → "M" → $ 45.000.000).
+ * También se puede escribir "45m", "1,2m" o "500k".
+ */
 export function bindMoneyPreviews(root) {
   for (const input of $$('[data-money]', root)) {
-    const out = input.parentElement.querySelector('.money-preview');
+    const out = input.closest('.field')?.querySelector('.money-preview') || document.createElement('small');
     const upd = () => {
       const v = parsePesos(input.value);
       out.textContent = input.value.trim() ? (Number.isSafeInteger(v) ? money(v) : 'Monto no válido') : '';
     };
+    if (!input.dataset.noMult && input.parentElement.classList.contains('money-wrap') && !input.parentElement.querySelector('.money-x')) {
+      const box = document.createElement('div');
+      box.className = 'money-x';
+      box.innerHTML = '<button type="button" data-mult="1000" aria-label="Multiplicar por mil">mil</button><button type="button" data-mult="1000000" aria-label="Multiplicar por un millón">M</button>';
+      input.insertAdjacentElement('afterend', box);
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-mult]');
+        if (!b) return;
+        const raw = input.value.trim().replace(/\$/g, '').replace(/\s/g, '');
+        const n = /^\d+([.,]\d{1,3})?$/.test(raw) && !/^\d{1,3}(\.\d{3})+$/.test(raw) ? parseDecimal(raw) : parsePesos(raw);
+        if (!Number.isFinite(n) || n <= 0) return input.focus();
+        const v = Math.round(n * Number(b.dataset.mult));
+        if (!Number.isSafeInteger(v)) return;
+        input.value = new Intl.NumberFormat('es-CO').format(v);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        haptic(8);
+      });
+    }
     input.addEventListener('input', upd);
     upd();
   }

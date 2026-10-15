@@ -17,7 +17,7 @@ import { setGoals, updateSettings } from './domain/settings.js';
 import { buildAgenda } from './domain/agenda.js';
 import { dailySnapshot, listSnapshots, requestPersistentStorage } from './store/persistence.js';
 import { getState, initStore, replaceState, run, subscribe } from './store/store.js';
-import { $, $$, bindMoneyPreviews, confirmDialog, download, errorMessage, esc, exec, field, money, openModal, readMoney, requestId, toast } from './ui/dom.js';
+import { $, $$, bindMoneyPreviews, confirmDialog, download, errorMessage, esc, exec, field, haptic, money, openModal, readMoney, requestId, toast } from './ui/dom.js';
 import { exportData } from './ui/exports.js';
 import { activityForm, clientForm, dispatchForm, documentForm, paymentForm, productForm, taskForm, whatsappComposer } from './ui/forms.js';
 import { navigate, route, savePrefs, setScope, ui } from './ui/state.js';
@@ -25,7 +25,10 @@ import { icon, monogram } from './ui/icons.js';
 import { periodMetrics } from './domain/metrics.js';
 import { carteraQuery, carteraResults, renderCartera } from './ui/views-cartera.js';
 import { clientQuery, clientResults, renderClient, renderClients } from './ui/views-clients.js';
-import { renderCommissions } from './ui/views-commissions.js';
+import { explainCommission, renderCommissions } from './ui/views-commissions.js';
+import { afterPersonalize, applyAppearance, personalizeHandlers, renderPersonalize, userAvatar } from './ui/personalize.js';
+import { showLock, watchLock, whenUnlocked } from './ui/lock.js';
+import { openSearch } from './ui/search.js';
 import { handleAgendaAction, renderAgenda, renderHome } from './ui/views-home.js';
 import { renderAudit, renderConfig, renderData, renderGoals, renderHelp, renderMore, renderPetHome, renderProducts, renderReports } from './ui/views-more.js';
 import { renderDocument, renderSales, salesQuery, salesResults } from './ui/views-sales.js';
@@ -48,7 +51,7 @@ const FAB_ITEMS = [
   ['new-client', 'userPlus', 'Nuevo cliente'],
   ['new-task', 'calendar', 'Programar tarea'],
 ];
-const SECTION = { cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
+const SECTION = { personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
 
 async function render() {
   const main = $('#main');
@@ -74,6 +77,7 @@ async function render() {
       case 'reportes': html = renderReports(r.params); break;
       case 'datos': html = await renderData(); break;
       case 'config': html = renderConfig(); break;
+      case 'personalizar': html = renderPersonalize(); break;
       case 'pethome': html = renderPetHome(); break;
       case 'auditoria': html = renderAudit(); break;
       case 'ayuda': html = renderHelp(); break;
@@ -101,11 +105,12 @@ async function render() {
   if (r.name !== lastRoute) main.focus({ preventScroll: true });
   window.scrollTo(0, y);
   lastRoute = r.name;
+  if (r.name === 'personalizar') afterPersonalize();
 }
 let lastRoute = '';
 let lastKey = '';
 
-const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const reduceMotion = () => !ui.motion || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 function animateCounts(root) {
   for (const el of $$('[data-count]', root)) {
@@ -143,7 +148,7 @@ function celebrate(title, text) {
   const bits = reduceMotion() ? '' : Array.from({ length: 26 }, (_, i) => `<i style="--x:${Math.round(Math.cos(i) * (90 + (i % 5) * 30))}px;--y:${Math.round(Math.sin(i * 1.7) * (110 + (i % 4) * 35))}px;--r:${i * 47}deg;animation-delay:${(i % 6) * 0.04}s;${i % 3 ? '' : 'background:#f6efdd;'}"></i>`).join('');
   wrap.innerHTML = `${bits}<div class="msg" role="status"><b>${esc(title)}</b>${esc(text)}</div>`;
   document.body.appendChild(wrap);
-  navigator.vibrate?.([20, 60, 30]);
+  haptic([20, 60, 30]);
   wrap.addEventListener('click', () => wrap.remove());
   setTimeout(() => wrap.remove(), 3600);
 }
@@ -170,6 +175,11 @@ function checkAchievements(reason) {
 
 /* ---------- Acciones (delegación de eventos) ---------- */
 const handlers = {
+  search: () => openSearch(),
+  'why-comm': (el) => {
+    const x = explainCommission(S(), el.dataset.id);
+    if (x) openModal({ title: x.title, subtitle: 'Así se calculó, paso a paso.', body: x.body, cancelText: 'Cerrar' });
+  },
   'new-client': () => clientForm(),
   'edit-client': (el) => clientForm(S().clients.find((c) => c.id === el.dataset.client)),
   'new-doc': (el) => documentForm(el.dataset.kind, { clientId: el.dataset.client }),
@@ -332,6 +342,9 @@ const handlers = {
   },
 };
 
+const pz = personalizeHandlers(() => render());
+for (const k of ['set-theme', 'set-palette', 'set-text', 'home-move', 'home-reset', 'photo-remove', 'pin-setup', 'pin-remove', 'bio-on', 'bio-off']) handlers[k] = pz[k];
+
 /** Reduce una imagen a JPEG (fondo blanco) para el logo de los PDF. */
 function imageToJpeg(file, maxSide) {
   return new Promise((resolve, reject) => {
@@ -434,6 +447,7 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
+  if (e.target.closest('[data-search]')) return openSearch();
   if (e.target.closest('[data-discreet]')) {
     ui.privacy = !ui.privacy;
     savePrefs();
@@ -465,6 +479,10 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.matches('[data-nav]')) return navigate(t.value);
+  if (t.matches('[data-photo]')) return pz.photo(t);
+  if (t.matches('[data-toggle]')) return pz.toggle(t);
+  if (t.matches('[data-home-toggle]')) return pz.homeToggle(t);
+  if (t.matches('[data-lock-minutes]')) return pz.lockMinutes(t);
   if (t.matches('[data-check-all]')) {
     $$('[data-comm]').forEach((c) => (c.checked = t.checked));
     updateSelectedSum();
@@ -666,6 +684,7 @@ function shell() {
   $('#nav-top').innerHTML = nav;
   $('#fab-menu').innerHTML = FAB_ITEMS.map(([act, ic, label, kind]) => `<button type="button" data-act="${act}"${kind ? ` data-kind="${kind}"` : ''}>${icon(ic)}${label}</button>`).join('');
   $('[data-fab]').innerHTML = icon('plus', { size: 26 });
+  $$('[data-search]').forEach((b) => (b.innerHTML = b.classList.contains('side-search') ? `${icon('search', { size: 18 })}<span>Buscar</span><kbd>/</kbd>` : icon('search')));
   $$('[data-monogram]').forEach((el) => (el.outerHTML = monogram(Number(el.dataset.monogram))));
   syncDiscreet();
 }
@@ -682,7 +701,23 @@ function syncDiscreet() {
 }
 
 const bootStart = performance.now();
+const SHORTCUTS = { venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'] };
+/** Atajos del ícono de la app (mantener presionado): #/hoy?do=venta, etc. */
+async function runShortcut() {
+  const r = route();
+  const sc = SHORTCUTS[r.params.get('do')];
+  if (!sc) return;
+  history.replaceState(null, '', '#/hoy');
+  await whenUnlocked();
+  const el = document.createElement('button');
+  if (sc[1]) el.dataset.kind = sc[1];
+  handlers[sc[0]]?.(el);
+}
+
+const lockProfile = () => ({ name: (S().settings.sellerName || '').trim().split(/\s+/)[0], avatar: userAvatar(72) });
+
 async function boot() {
+  applyAppearance();
   shell();
   watchHostOverlays();
   try {
@@ -698,9 +733,22 @@ async function boot() {
     render();
     checkAchievements(reason);
   });
-  window.addEventListener('hashchange', render);
+  window.addEventListener('hashchange', () => {
+    if (route().params.get('do')) runShortcut();
+    render();
+  });
+  if (ui.lock) showLock(lockProfile());
+  watchLock(lockProfile);
   await render();
   checkAchievements('init');
+  runShortcut();
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !e.target.closest('input,textarea,select,[contenteditable]') && !document.body.classList.contains('modal-open')) {
+      e.preventDefault();
+      openSearch();
+    }
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyAppearance);
   const splash = $('#splash');
   setTimeout(() => {
     splash?.classList.add('hide');
