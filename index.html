@@ -22,6 +22,7 @@
     if (p.palette) r.dataset.palette = p.palette;
     if (p.text) r.dataset.text = p.text;
     if (p.motion === false) r.dataset.motion = 'off';
+    if (p.oled) r.dataset.oled = 'on';
     if (p.lock) r.classList.add('pre-lock');
   } catch (e) {}
 </script>
@@ -30,6 +31,7 @@
 <body>
 <div id="splash" role="presentation"><div class="sp"><span data-monogram="76"></span><b>Mi Centro Comercial</b><small>El Puntazo · Frutos del Nogal</small></div></div>
 <a class="skip" href="#main">Saltar al contenido</a>
+<div id="ambient" aria-hidden="true"><i class="aur"></i><i class="grn"></i></div>
 <div class="app">
   <aside class="sidebar" aria-label="Navegación principal">
     <div class="brand"><span data-monogram="38"></span><div><b>Mi Centro Comercial</b><small>CRM de tus negocios</small></div></div>
@@ -53,7 +55,8 @@
     <main id="main" class="main" tabindex="-1"><p class="loading">Cargando tus datos…</p></main>
   </div>
   <button type="button" class="fab" data-fab aria-haspopup="true" aria-expanded="false" aria-label="Registrar"></button>
-  <div id="fab-menu" class="fab-menu" hidden></div>
+  <div class="fab-scrim" aria-hidden="true"></div>
+  <div id="fab-menu" class="fab-menu" aria-hidden="true"></div>
 </div>
 <div id="modal-root"></div>
 <div id="toast-root" class="toasts" aria-live="polite"></div>

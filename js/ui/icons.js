@@ -59,6 +59,13 @@ export function monogram(size = 36) {
 }
 
 /** Ilustración para estados vacíos (hojas de nogal y una nuez). */
-export function illustration() {
+function nogalIllustration() {
   return `<svg class="illus" width="120" height="96" viewBox="0 0 120 96" aria-hidden="true"><ellipse cx="60" cy="86" rx="44" ry="6" fill="var(--surface-muted)"/><path d="M36 70c-14-10-14-32 4-42 4 18 8 30-4 42Z" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="1.5"/><path d="M36 70c-2-12 0-26 4-42" fill="none" stroke="var(--primary)" stroke-width="1.2"/><path d="M84 70c14-10 14-32-4-42-4 18-8 30 4 42Z" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="1.5"/><path d="M84 70c2-12 0-26-4-42" fill="none" stroke="var(--primary)" stroke-width="1.2"/><ellipse cx="60" cy="58" rx="17" ry="20" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="2"/><path d="M60 38v40M50 46c4 4 4 20 0 24M70 46c-4 4-4 20 0 24" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+}
+
+/** Ilustración de estados vacíos según la empresa: nuez (Nogal), piñata (El Puntazo), huella (Alegría). */
+export function illustration(scope = 'nogal') {
+  if (scope === 'puntazo') return '<svg class="illus" width="120" height="96" viewBox="0 0 130 110" aria-hidden="true"><ellipse cx="65" cy="100" rx="45" ry="6" fill="var(--surface-muted)"/><path d="M65 8v20" stroke="var(--fg-subtle)" stroke-width="1.5"/><path d="M40 40l25-12 25 12-6 44H46z" fill="var(--puntazo)"/><path d="M43 52h44M45 66h40" stroke="var(--primary)" stroke-width="5"/><path d="M50 84l-4 12M60 84l-1 14M70 84l1 14M80 84l4 12" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="30" r="3" fill="var(--puntazo)"/><rect x="100" y="24" width="5" height="9" rx="1" fill="var(--gold)" transform="rotate(25 102 28)"/></svg>';
+  if (scope === 'pethome') return '<svg class="illus" width="120" height="96" viewBox="0 0 130 110" aria-hidden="true"><ellipse cx="65" cy="100" rx="45" ry="6" fill="var(--surface-muted)"/><g fill="#e8954d"><ellipse cx="65" cy="70" rx="20" ry="16"/><circle cx="44" cy="48" r="8"/><circle cx="57" cy="38" r="8"/><circle cx="73" cy="38" r="8"/><circle cx="86" cy="48" r="8"/></g><g fill="var(--primary)" opacity=".3" transform="translate(100 80) scale(.35)"><ellipse cx="0" cy="8" rx="20" ry="16"/><circle cx="-21" cy="-14" r="8"/><circle cx="-8" cy="-24" r="8"/><circle cx="8" cy="-24" r="8"/><circle cx="21" cy="-14" r="8"/></g></svg>';
+  return nogalIllustration();
 }

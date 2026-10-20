@@ -12,6 +12,7 @@ import { HOME_SECTIONS, ui } from './state.js';
 import { isActiveSale } from '../domain/ledger.js';
 import { lastOrderFor } from '../domain/pricing.js';
 import { userAvatar } from './personalize.js';
+import { heroDeco } from './motion.js';
 
 const S = () => getState();
 const coName = (id) => (id ? S().companies[id]?.name : 'General');
@@ -113,7 +114,7 @@ export function paceChart(t) {
       <text class="p-goal-l" x="${X(days) - 2}" y="${(Yc(t.threshold) - 4).toFixed(1)}" text-anchor="end">Umbral ${money(t.threshold).replace(/\s/g, ' ')}</text>
       <line class="p-ideal" x1="${X(0)}" y1="${Yc(0)}" x2="${X(days)}" y2="${Yc(t.threshold).toFixed(1)}"/>
       <polygon class="p-area" points="${area}"/>
-      <polyline class="p-line" points="${line}"/>
+      <polyline class="p-line" pathLength="1" points="${line}"/>
       <circle class="p-dot" cx="${X(day).toFixed(1)}" cy="${Yc(acc).toFixed(1)}" r="4.5"/>
       <g class="p-ticks">${ticks}</g>
     </svg>
@@ -191,7 +192,7 @@ function hero(s, d, cos) {
   const R = 46;
   const L = Math.round(2 * Math.PI * R * 100) / 100;
   const ring = pct === null ? '' : `<div class="ring" aria-label="Avance ${Math.floor(pct)} %"><svg width="108" height="108" viewBox="0 0 108 108"><defs><linearGradient id="ringGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--hero-accent-2)"/><stop offset="1" style="stop-color:var(--hero-accent)"/></linearGradient></defs><circle class="track" cx="54" cy="54" r="${R}" fill="none" stroke-width="9"/><circle class="bar" cx="54" cy="54" r="${R}" fill="none" stroke-width="9" stroke-linecap="round" stroke-dasharray="${L}" style="stroke-dashoffset:${L}" data-ring="${pct}"/></svg><div class="ring-txt"><div><b>${ringTop}</b><small>${ringBottom}</small></div></div></div>`;
-  return `<section class="hero" aria-label="Resumen de comisiones"><div class="hero-top"><div><div class="hero-label">Comisión de ${esc(periodLabel(d.period).split(' ')[0])}</div><div class="hero-amount" data-count="${generated}">${money(generated)}</div><div class="hero-sub">Pendiente de liquidar <b>${money(pending)}</b> · Vendido antes de IVA <b>${money(d.total.salesNet)}</b></div></div>${ring}</div>${chip ? `<div class="hero-foot"><span class="hero-chip">${chip}</span></div>` : ''}</section>`;
+  return `<section class="hero" aria-label="Resumen de comisiones">${heroDeco()}<div class="hero-top"><div><div class="hero-label">Comisión de ${esc(periodLabel(d.period).split(' ')[0])}</div><div class="hero-amount" data-count="${generated}">${money(generated)}</div><div class="hero-sub">Pendiente de liquidar <b>${money(pending)}</b> · Vendido antes de IVA <b>${money(d.total.salesNet)}</b></div></div>${ring}</div>${chip ? `<div class="hero-foot"><span class="hero-chip">${chip}</span></div>` : ''}</section>`;
 }
 
 export function renderHome() {

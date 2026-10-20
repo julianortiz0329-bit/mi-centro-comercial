@@ -5,6 +5,7 @@ import { addPhPayment, addPurchasePayment, addSupplierNote, createPhSale, create
 import { getState, run } from '../store/store.js';
 import { $, $$, bindMoneyPreviews, errorMessage, esc, exec, field, haptic, money, openModal, readMoney, requestId, toast } from './dom.js';
 import { navigate } from './state.js';
+import { cobroDone, markPaid } from './motion.js';
 
 const P = () => getState().pethome;
 const methodOptions = Object.entries(PH_METHODS).map(([value, label]) => ({ value, label }));
@@ -201,6 +202,9 @@ export function phPaymentForm(saleId, onSaved) {
     onSubmit: async (fd) => {
       const p = await exec(addPhPayment, { saleId, amount: readMoney(fd, 'amount', { label: 'El abono' }), date: fd.get('date'), method: fd.get('method'), note: fd.get('note') }, { success: 'Abono registrado' });
       if (!p) return false;
+      const sale = P().sales.find((x) => x.id === saleId);
+      if (saleTotals(sale).balance === 0) markPaid(saleId);
+      cobroDone(p.amount, sale.customerName);
       onSaved?.(p);
     },
   });

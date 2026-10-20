@@ -287,7 +287,7 @@ export function requestId() {
 }
 
 export function empty(_icon, title, text, action = '') {
-  return `<div class="empty">${illustration()}<strong>${title}</strong><p>${text}</p>${action}</div>`;
+  return `<div class="empty">${illustration(ui.scope)}<strong>${title}</strong><p>${text}</p>${action}</div>`;
 }
 
 export function stat(label, value, note = '', tone = '') {

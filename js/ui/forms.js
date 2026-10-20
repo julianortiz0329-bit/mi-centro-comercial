@@ -6,6 +6,7 @@ import { createClient, searchClients, updateClient } from '../domain/clients.js'
 import { fromPickedContact, parseContactText } from '../domain/contact-parse.js';
 import { rutSummary } from '../domain/rut-parse.js';
 import { readRutPdf } from './rut-reader.js';
+import { cobroDone, markPaid, skeleton } from './motion.js';
 import { createSaleWithPayment } from '../domain/commands.js';
 import { changeStatus, computeLine, computeTotals, convertDocument, pendingDispatch, registerDispatch, updateDraftDocument, voidSale } from '../domain/documents.js';
 import { saleBalance, isActiveSale } from '../domain/ledger.js';
@@ -198,7 +199,7 @@ async function applyRut(form, file) {
   const box = $('.import-bar', form);
   const note = document.createElement('div');
   note.className = 'notice info full';
-  note.textContent = 'Leyendo el RUT…';
+  note.innerHTML = `Leyendo el RUT…${skeleton(3)}`;
   box?.insertAdjacentElement('afterend', note);
   try {
     const r = await readRutPdf(file);
@@ -731,9 +732,15 @@ export function paymentForm(opts = {}) {
       if (!cid) return false;
       const p = await exec(registerPayment, { companyId: fd.get('companyId'), clientId: cid, date: fd.get('date'), time: fd.get('time'), amount: readMoney(fd, 'amount', { label: 'El valor recibido' }), method: fd.get('method'), reference: fd.get('reference'), notes: fd.get('notes'), allocations, requestId: rid });
       if (!p) return false;
+      for (const a of p.allocations) {
+        const d = S().documents.find((x) => x.id === a.documentId);
+        if (d && saleBalance(S(), d) === 0) markPaid(d.id);
+      }
+      const confirmShown = cobroDone(p.amount, S().clients.find((c) => c.id === p.clientId)?.tradeName);
       offerUndo(`Pago de ${money(p.amount)} registrado`, () => run(reversePayment, { paymentId: p.id, reason: UNDO_REASON }), 'Pago reversado (queda en el historial)');
       const client = S().clients.find((c) => c.id === p.clientId);
       const firstDoc = S().documents.find((d) => d.id === p.allocations[0]?.documentId);
+      await confirmShown;
       if (normalizePhone(client.whatsapp || client.phone) && (await confirmDialog({ title: 'Confirmación al cliente', message: `¿Le envías a ${client.tradeName} la confirmación del abono por WhatsApp?`, confirmText: 'Sí, preparar mensaje' }))) {
         whatsappComposer({ clientId: client.id, companyId: p.companyId, template: 'abono', documentId: firstDoc?.id, paymentId: p.id });
       }

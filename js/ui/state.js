@@ -44,6 +44,8 @@ export const ui = {
   text: ['normal', 'grande'].includes(p0.text) ? p0.text : 'normal',
   motion: p0.motion !== false,
   haptics: p0.haptics !== false,
+  sound: p0.sound === true,
+  oled: p0.oled === true,
   photo: typeof p0.photo === 'string' && p0.photo.startsWith('data:image/') ? p0.photo : null,
   homeOrder: cleanOrder(p0.homeOrder),
   homeHidden: Array.isArray(p0.homeHidden) ? p0.homeHidden.filter((k) => HOME_SECTIONS[k]) : [],
@@ -58,8 +60,8 @@ export function setScope(scope) {
 
 export function savePrefs() {
   try {
-    const { scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, photo, homeOrder, homeHidden, lock } = ui;
-    localStorage.setItem(PREF, JSON.stringify({ scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, photo, homeOrder, homeHidden, lock }));
+    const { scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock } = ui;
+    localStorage.setItem(PREF, JSON.stringify({ scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock }));
     return true;
   } catch {
     return false; // preferencia opcional (p. ej. almacenamiento lleno)

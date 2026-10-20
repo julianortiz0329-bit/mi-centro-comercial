@@ -3,6 +3,7 @@
 import { getState } from '../store/store.js';
 import { $, esc, haptic, toast } from './dom.js';
 import { icon } from './icons.js';
+import { sounds } from './motion.js';
 import { biometricAvailable, disableBiometric, enableBiometric, removePin, setupPin } from './lock.js';
 import { DEFAULT_HOME, HOME_SECTIONS, PALETTES, savePrefs, ui } from './state.js';
 import { APP_VERSION } from '../domain/schema.js';
@@ -15,6 +16,8 @@ export function applyAppearance() {
   r.dataset.palette = ui.palette;
   r.dataset.text = ui.text;
   r.dataset.motion = ui.motion ? 'on' : 'off';
+  if (ui.oled) r.dataset.oled = 'on';
+  else delete r.dataset.oled;
   // Color de la barra del sistema igual al fondo de la app.
   requestAnimationFrame(() => {
     const bg = getComputedStyle(document.body).backgroundColor;
@@ -57,7 +60,7 @@ export function renderPersonalize() {
     <div class="palettes">${Object.entries(PALETTES).map(([k, p]) => `<button type="button" class="palette ${ui.palette === k ? 'on' : ''}" data-act="set-palette" data-v="${k}" aria-pressed="${ui.palette === k}"><span class="pal-swatch" style="--a:${p.swatch[0]};--b:${p.swatch[1]}"><i></i></span><b>${p.label}</b><small>${p.hint}</small>${ui.palette === k ? `<span class="pal-check">${icon('check', { size: 14 })}</span>` : ''}</button>`).join('')}</div>
     <div class="pz-label">Tamaño de letra</div>
     ${seg('set-text', ui.text, [['normal', 'Normal'], ['grande', 'Grande']])}
-    <div class="switches">${sw('motion', ui.motion, 'Animaciones', 'Transiciones suaves, números que cuentan y celebraciones.')}${sw('haptics', ui.haptics, 'Vibración', 'Una vibración corta al guardar.')}</div>
+    <div class="switches">${sw('motion', ui.motion, 'Animaciones', 'Transiciones suaves, números que cuentan y celebraciones.')}${sw('haptics', ui.haptics, 'Vibración', 'Una vibración corta al guardar.')}${sw('sound', ui.sound, 'Sonidos', 'Caja registradora al cobrar, sello al saldar una cuenta.')}${sw('oled', ui.oled, 'Oscuro OLED', 'En modo oscuro usa negro real: más contraste y menos batería.')}</div>
   </section>
   <section class="panel"><div class="panel-head"><div><h2>${icon('home', { size: 18 })} Pantalla de inicio</h2><p class="muted small">Ordena las secciones con las flechas y oculta las que no uses.</p></div><button class="btn btn-plain btn-small" data-act="home-reset">Restablecer</button></div>
     <ol class="home-order">${order.map((k, i) => `<li class="${ui.homeHidden.includes(k) ? 'off' : ''}"><label class="ho-check"><input type="checkbox" data-home-toggle="${k}" ${ui.homeHidden.includes(k) ? '' : 'checked'}><span>${HOME_SECTIONS[k]}</span></label><span class="ho-move"><button type="button" class="icon-btn" data-act="home-move" data-k="${k}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Subir ${HOME_SECTIONS[k]}">${icon('up', { size: 18 })}</button><button type="button" class="icon-btn" data-act="home-move" data-k="${k}" data-dir="1" ${i === order.length - 1 ? 'disabled' : ''} aria-label="Bajar ${HOME_SECTIONS[k]}">${icon('down', { size: 18 })}</button></span></li>`).join('')}</ol>
@@ -147,6 +150,11 @@ export function personalizeHandlers(rerender) {
       const k = input.dataset.toggle;
       if (k === 'motion') ui.motion = input.checked;
       if (k === 'haptics') ui.haptics = input.checked;
+      if (k === 'sound') {
+        ui.sound = input.checked;
+        if (ui.sound) setTimeout(() => sounds.cash(), 50);
+      }
+      if (k === 'oled') ui.oled = input.checked;
       commit();
     },
     homeToggle(input) {

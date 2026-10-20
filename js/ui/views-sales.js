@@ -4,6 +4,7 @@ import { allowedTransitions, computeLine, pendingDispatch } from '../domain/docu
 import { allocationsFor, saleBalance } from '../domain/ledger.js';
 import { COMMISSION_STATUSES, DOC_KINDS, ORDER_STATUSES, PAYMENT_METHODS, QUOTE_STATUSES, SALE_STATUSES } from '../domain/schema.js';
 import { getState } from '../store/store.js';
+import { paidStamp } from './motion.js';
 import { empty, esc, money, pill } from './dom.js';
 import { ui } from './state.js';
 
@@ -81,7 +82,7 @@ export function renderDocument(id) {
   ${d.legacy ? '<div class="notice info">Documento migrado de la versión 1: el valor no tiene desglose de IVA y no genera comisión por venta.</div>' : ''}
   ${d.voided ? `<div class="notice warn">Anulada el ${formatDateTime(d.voided.at)}: ${esc(d.voided.reason)}</div>` : ''}
   ${d.dispute?.active ? '<div class="notice warn">Cuenta marcada en disputa.</div>' : ''}
-  <div class="stats">
+  <div class="stats stamp-host">${isSale && d.status === 'emitida' && bal === 0 ? paidStamp(d.id) : ''}
     ${'<div class="stat"><div class="stat-label">Total</div><div class="stat-value">' + money(d.totals.total) + '</div><div class="stat-note">Antes de IVA ' + money(d.totals.net) + ' · IVA ' + money(d.totals.iva) + '</div></div>'}
     ${isSale ? `<div class="stat"><div class="stat-label">Abonado</div><div class="stat-value">${money(d.totals.total - bal)}</div></div><div class="stat ${bal > 0 && d.dueDate < new Date().toISOString().slice(0, 10) ? 'warn' : ''}"><div class="stat-label">Saldo</div><div class="stat-value">${money(bal)}</div><div class="stat-note">Vence ${formatDate(d.dueDate)}</div></div>` : ''}
     <div class="stat"><div class="stat-label">Condición</div><div class="stat-value small">${d.kind === 'cotizacion' ? (d.validUntil ? `Válida hasta ${formatDate(d.validUntil)}` : '—') : d.term.days === 0 ? 'Contado' : `${d.term.days} días`}</div><div class="stat-note">${d.kind === 'cotizacion' ? '' : `Origen: ${esc({ documento: 'este documento', cliente: 'condición del cliente', general: 'configuración general', migrado: 'versión 1' }[d.term.source] || d.term.source)}`}</div></div>

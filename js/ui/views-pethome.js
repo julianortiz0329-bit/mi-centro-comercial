@@ -6,6 +6,7 @@ import { normalizePhone, telLink } from '../domain/whatsapp.js';
 import { getState } from '../store/store.js';
 import { empty, esc, money, pill, stat } from './dom.js';
 import { icon } from './icons.js';
+import { heroDeco, paidStamp } from './motion.js';
 
 const S = () => getState();
 const P = () => S().pethome;
@@ -54,7 +55,7 @@ export function renderPhHome(params) {
   const follow = st.notes.filter((n) => n.followUp && !n.done && n.followUp <= addDays(today, 7)).sort((a, b) => a.followUp.localeCompare(b.followUp)).slice(0, 5);
   return `${head(periodLabel(period), 'Alegría Pet Home', '<button class="btn btn-primary" data-act="ph-new-sale">＋ Venta</button>')}
   <div class="month-nav"><a class="btn btn-plain btn-small" href="#/ph?p=${prev}">‹ ${esc(periodLabel(prev))}</a>${period < today.slice(0, 7) ? `<a class="btn btn-plain btn-small" href="#/ph?p=${next}">${esc(periodLabel(next))} ›</a>` : ''}</div>
-  <section class="hero ph-hero"><div class="hero-top"><div><div class="hero-label">Ganancia de ${esc(periodLabel(period).split(' ')[0])}</div><div class="hero-amount" ${m.profitSales ? `data-count="${m.profit}"` : ''}>${m.profitSales ? money(m.profit) : '—'}</div>
+  <section class="hero ph-hero">${heroDeco()}<div class="hero-top"><div><div class="hero-label">Ganancia de ${esc(periodLabel(period).split(' ')[0])}</div><div class="hero-amount" ${m.profitSales ? `data-count="${m.profit}"` : ''}>${m.profitSales ? money(m.profit) : '—'}</div>
     <div class="hero-sub">Vendiste <b>${money(m.revenue)}</b> en ${m.count} venta(s)${m.marginPct !== null ? ` · margen <b>${pct(m.marginPct)}</b>` : ''}</div></div></div>
     ${m.unknownSales ? `<div class="hero-foot"><a class="hero-chip" href="#/ph-productos?f=sincosto">${icon('alert', { size: 14 })} ${m.unknownSales} venta(s) con productos sin costo no se cuentan en la ganancia</a></div>` : ''}</section>
   <div class="stats">
@@ -106,7 +107,7 @@ export function renderPhSale(id) {
     <button class="btn btn-plain" data-act="ph-repeat" data-id="${x.id}">Repetir venta</button>
     ${active ? `<button class="btn btn-plain" data-act="ph-void-sale" data-id="${x.id}">Anular</button>` : ''}
   </div>
-  <div class="stats">${stat('Total', money(t.total), `${formatDate(x.date)} · ${esc(PH_CHANNELS[x.channel])}`)}${stat('Pagado', money(t.paid))}${stat('Saldo', money(t.balance), x.dueDate ? `Pagar antes del ${formatDate(x.dueDate)}` : '', t.balance ? 'warn' : '')}${stat('Ganancia', t.knownCost ? money(t.profit) : '—', t.knownCost ? `Margen ${pct(t.marginPct)}` : 'Falta el costo de algún producto')}</div>
+  <div class="stats stamp-host">${active && t.balance === 0 && t.total > 0 ? paidStamp(x.id) : ''}${stat('Total', money(t.total), `${formatDate(x.date)} · ${esc(PH_CHANNELS[x.channel])}`)}${stat('Pagado', money(t.paid))}${stat('Saldo', money(t.balance), x.dueDate ? `Pagar antes del ${formatDate(x.dueDate)}` : '', t.balance ? 'warn' : '')}${stat('Ganancia', t.knownCost ? money(t.profit) : '—', t.knownCost ? `Margen ${pct(t.marginPct)}` : 'Falta el costo de algún producto')}</div>
   <section class="panel"><h2>Detalle</h2><div class="table-wrap"><table><thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Costo</th><th>Subtotal</th><th>Ganancia</th></tr></thead><tbody>
     ${x.lines.map((l) => `<tr><td>${esc(l.description)}</td><td>${l.qty}</td><td>${money(l.unitPrice)}</td><td>${Number.isSafeInteger(l.unitCost) ? money(l.unitCost) : '<span class="pill warn">sin costo</span>'}</td><td>${money(Math.round(l.unitPrice * l.qty))}</td><td>${Number.isSafeInteger(l.unitCost) ? money(Math.round((l.unitPrice - l.unitCost) * l.qty)) : '—'}</td></tr>`).join('')}
   </tbody><tfoot>${x.discount ? `<tr><td colspan="4">Descuento</td><td>− ${money(x.discount)}</td><td></td></tr>` : ''}${x.shipping || x.shippingCost ? `<tr><td colspan="4">Domicilio (cobrado ${money(x.shipping)} · pagado ${money(x.shippingCost)})</td><td>${money(x.shipping)}</td><td>${money(x.shipping - x.shippingCost)}</td></tr>` : ''}<tr><td colspan="4"><b>Total</b></td><td><b>${money(t.total)}</b></td><td><b>${t.knownCost ? money(t.profit) : '—'}</b></td></tr></tfoot></table></div>

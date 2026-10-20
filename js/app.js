@@ -30,6 +30,7 @@ import { explainCommission, renderCommissions } from './ui/views-commissions.js'
 import { afterPersonalize, applyAppearance, personalizeHandlers, renderPersonalize, userAvatar } from './ui/personalize.js';
 import { showLock, watchLock, whenUnlocked } from './ui/lock.js';
 import { openSearch } from './ui/search.js';
+import { bindRipple, bindTilt, bounce, markMorph, odometer, paintGrain, setSections, sparkle, swapScreen, syncNavPill } from './ui/motion.js';
 import { phLogo, phProductQuery, phProductRows, renderPhHome, renderPhProducts, renderPhProfile, renderPhSale, renderPhSales, renderPhSupplier, renderPhSuppliers } from './ui/views-pethome.js';
 import { phNoteForm, phPaymentForm, phProductForm, phPurchaseForm, phPurchasePayForm, phSaleForm, phSupplierForm } from './ui/forms-pethome.js';
 import { chargeAccountPdf, paymentReceiptPdf } from './ui/pdf-pethome.js';
@@ -71,6 +72,7 @@ const PH_FAB = [
   ['ph-new-supplier', 'userPlus', 'Nuevo proveedor'],
   ['ph-new-product', 'plus', 'Nuevo producto'],
 ];
+const NAV_ORDER = ['hoy', 'clientes', 'ventas', 'cartera', 'comisiones', 'ph', 'ph-ventas', 'ph-proveedores', 'ph-productos', 'mas'];
 const GENERIC_ROUTES = ['mas', 'personalizar', 'datos', 'config', 'ayuda', 'auditoria', 'pethome'];
 const isPhRoute = (n) => n === 'ph' || n.startsWith('ph-');
 const SECTION = { 'ph-venta': 'ph-ventas', 'ph-proveedor': 'ph-proveedores', 'ph-perfil': 'ph', personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
@@ -123,22 +125,32 @@ async function render() {
   }
   const y = r.name === lastRoute ? window.scrollY : 0;
   const changed = `${r.name}/${r.id}` !== lastKey;
-  main.innerHTML = html;
-  // Entrada suave y números que "cuentan" solo al cambiar de pantalla.
-  if (changed) {
-    main.classList.remove('enter');
-    void main.offsetWidth;
-    main.classList.add('enter');
-    animateCounts(main);
-    animateRings(main);
-  } else {
-    for (const el of $$('[data-count]', main)) el.textContent = money(Number(el.dataset.count));
-    animateRings(main, true);
-  }
+  const fromName = lastRoute;
+  const fromId = lastKey.split('/')[1];
+  const prevCount = $('.hero-amount[data-count]', main)?.dataset.count;
+  const apply = () => {
+    main.innerHTML = html;
+    // Al volver de una ficha, la tarjeta del cliente recibe la ficha que se encoge.
+    if (r.name === 'clientes' && fromName === 'cliente') markMorph($(`.client-card a[href="#/cliente/${fromId}"]`)?.closest('.client-card'));
+    if (changed) {
+      main.classList.remove('enter');
+      void main.offsetWidth;
+      main.classList.add('enter');
+      animateCounts(main);
+      animateRings(main);
+    } else {
+      for (const el of $$('[data-count]', main)) odometer(el, Number(el.dataset.count), { from: Number(prevCount ?? el.dataset.count) });
+      animateRings(main, true);
+    }
+    bindTilt(main);
+    window.scrollTo(0, y);
+  };
+  if (changed && lastKey) await swapScreen(fromName, r.name, NAV_ORDER, apply);
+  else apply();
   lastKey = `${r.name}/${r.id}`;
   if (r.name !== lastRoute) main.focus({ preventScroll: true });
-  window.scrollTo(0, y);
   lastRoute = r.name;
+  syncNavPill(true);
   if (r.name === 'personalizar') afterPersonalize();
   if (focusKey) $(focusKey)?.focus({ preventScroll: true });
 }
@@ -164,6 +176,10 @@ const reduceMotion = () => !ui.motion || window.matchMedia?.('(prefers-reduced-m
 
 function animateCounts(root) {
   for (const el of $$('[data-count]', root)) {
+    if (el.classList.contains('hero-amount')) {
+      odometer(el, Number(el.dataset.count) || 0);
+      continue;
+    }
     const to = Number(el.dataset.count) || 0;
     if (reduceMotion() || !to) {
       el.textContent = money(to);
@@ -193,14 +209,7 @@ function animateRings(root, instant = false) {
 
 /** Celebración dorada (umbral superado, meta cumplida). */
 function celebrate(title, text) {
-  const wrap = document.createElement('div');
-  wrap.className = 'celebrate';
-  const bits = reduceMotion() ? '' : Array.from({ length: 26 }, (_, i) => `<i style="--x:${Math.round(Math.cos(i) * (90 + (i % 5) * 30))}px;--y:${Math.round(Math.sin(i * 1.7) * (110 + (i % 4) * 35))}px;--r:${i * 47}deg;animation-delay:${(i % 6) * 0.04}s;${i % 3 ? '' : 'background:#f6efdd;'}"></i>`).join('');
-  wrap.innerHTML = `${bits}<div class="msg" role="status"><b>${esc(title)}</b>${esc(text)}</div>`;
-  document.body.appendChild(wrap);
-  haptic([20, 60, 30]);
-  wrap.addEventListener('click', () => wrap.remove());
-  setTimeout(() => wrap.remove(), 3600);
+  sparkle(title, text);
 }
 
 /** Detecta logros nuevos tras cada cambio (umbral superado, meta del mes). */
@@ -609,7 +618,23 @@ function goalsForm() {
   });
 }
 
+function toggleFab(force) {
+  const menu = $('#fab-menu');
+  const open = force ?? !menu.classList.contains('open');
+  menu.classList.toggle('open', open);
+  menu.hidden = false;
+  menu.setAttribute('aria-hidden', String(!open));
+  menu.inert = !open;
+  $('[data-fab]').setAttribute('aria-expanded', String(open));
+  document.body.classList.toggle('fab-open', open);
+}
+
 document.addEventListener('click', async (e) => {
+  const navA = e.target.closest('#nav-top a, #nav-main a');
+  if (navA) bounce(navA);
+  const card = e.target.closest('.client-card a.cc-main');
+  if (card) markMorph(card.closest('.client-card'));
+  if (e.target.closest('.fab-scrim')) return toggleFab(false);
   const scopeBtn = e.target.closest('button[data-scope]');
   if (scopeBtn) {
     const to = scopeBtn.dataset.scope;
@@ -630,16 +655,15 @@ document.addEventListener('click', async (e) => {
   }
   const fab = e.target.closest('[data-fab]');
   if (fab) {
-    $('#fab-menu').hidden = !$('#fab-menu').hidden;
-    fab.setAttribute('aria-expanded', String(!$('#fab-menu').hidden));
+    toggleFab();
     return;
   }
   const el = e.target.closest('[data-act]');
   if (!el) {
-    if (!e.target.closest('#fab-menu')) $('#fab-menu').hidden = true;
+    if (!e.target.closest('#fab-menu')) toggleFab(false);
     return;
   }
-  $('#fab-menu').hidden = true;
+  toggleFab(false);
   const act = el.dataset.act;
   try {
     if (await handleAgendaAction(act, el)) return;
@@ -926,6 +950,10 @@ const lockProfile = () => ({ name: (S().settings.sellerName || '').trim().split(
 
 async function boot() {
   applyAppearance();
+  paintGrain();
+  bindRipple();
+  setSections(SECTION);
+  window.addEventListener('resize', () => syncNavPill(false));
   shell();
   watchHostOverlays();
   try {
