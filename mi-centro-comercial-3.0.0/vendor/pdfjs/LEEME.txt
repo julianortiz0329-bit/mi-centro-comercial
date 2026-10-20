@@ -1,0 +1,1 @@
+pdf.js 4.10.38 (Mozilla, Apache-2.0) — https://github.com/mozilla/pdf.js. Se usa solo para leer el texto de RUT en PDF dentro del celular.
