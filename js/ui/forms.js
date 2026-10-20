@@ -3,6 +3,9 @@ import { localDate, localTime, formatDate } from '../core/dates.js';
 import { parseDecimal, parsePesos } from '../core/money.js';
 import { addActivity, addTask, confirmWhatsApp } from '../domain/activities.js';
 import { createClient, searchClients, updateClient } from '../domain/clients.js';
+import { fromPickedContact, parseContactText } from '../domain/contact-parse.js';
+import { rutSummary } from '../domain/rut-parse.js';
+import { readRutPdf } from './rut-reader.js';
 import { createSaleWithPayment } from '../domain/commands.js';
 import { changeStatus, computeLine, computeTotals, convertDocument, pendingDispatch, registerDispatch, updateDraftDocument, voidSale } from '../domain/documents.js';
 import { saleBalance, isActiveSale } from '../domain/ledger.js';
@@ -18,7 +21,7 @@ import { navigate, ui } from './state.js';
 
 const S = () => getState();
 const coOptions = (withEmpty = false) => [...(withEmpty ? [{ value: '', label: 'Selecciona…' }] : []), ...ACTIVE_COMPANY_IDS.map((id) => ({ value: id, label: S().companies[id].name }))];
-const defaultCompany = () => (ui.scope !== 'todas' ? ui.scope : '');
+const defaultCompany = () => (['puntazo', 'nogal'].includes(ui.scope) ? ui.scope : '');
 const UNDO_REASON = 'Deshecho justo después de registrarlo (botón Deshacer)';
 
 /** Aviso con "Deshacer". Nada se borra: se reversa o anula con su motivo. */
@@ -151,9 +154,82 @@ function needClient(fd) {
 }
 
 /* ---------- Clientes ---------- */
-export function clientForm(existing = null) {
+const CONTACT_FIELDS = ['tradeName', 'legalName', 'contactName', 'phone', 'whatsapp', 'email', 'taxId', 'department', 'city', 'address'];
+const canPickContacts = () => 'contacts' in navigator && 'select' in navigator.contacts;
+async function contactProps() {
+  const want = ['name', 'tel', 'email', 'address'];
+  try {
+    const ok = await navigator.contacts.getProperties();
+    return want.filter((p) => ok.includes(p));
+  } catch {
+    return ['name', 'tel'];
+  }
+}
+
+/** Llena el formulario de cliente con lo detectado; no pisa lo que ya escribiste. */
+function fillClientForm(form, data, { overwrite = false } = {}) {
+  const filled = [];
+  for (const k of CONTACT_FIELDS) {
+    const v = data[k];
+    const input = form.elements[k];
+    if (!v || !input) continue;
+    if (input.value.trim() && !overwrite) {
+      if (k === 'phone' && !form.elements.whatsapp.value.trim() && normalizePhone(input.value) !== normalizePhone(v)) {
+        form.elements.whatsapp.value = v;
+        filled.push(form.elements.whatsapp);
+      }
+      continue;
+    }
+    input.value = v;
+    filled.push(input);
+  }
+  for (const el of filled) {
+    el.classList.remove('just-filled');
+    void el.offsetWidth;
+    el.classList.add('just-filled');
+  }
+  checkDuplicatePhone(form);
+  if (filled.length) haptic(10);
+  return filled.length;
+}
+
+/** Lee un RUT en PDF y llena la ficha (revisión antes de guardar). */
+async function applyRut(form, file) {
+  const box = $('.import-bar', form);
+  const note = document.createElement('div');
+  note.className = 'notice info full';
+  note.textContent = 'Leyendo el RUT…';
+  box?.insertAdjacentElement('afterend', note);
+  try {
+    const r = await readRutPdf(file);
+    const n = fillClientForm(form, r.client, { overwrite: true });
+    const extra = rutSummary(r.client.rut);
+    const notes = form.elements.notes;
+    if (extra && notes && !notes.value.includes('Responsabilidades RUT')) notes.value = [notes.value.trim(), extra].filter(Boolean).join('\n');
+    const tax = r.client.rut?.responsibilities || [];
+    note.className = `notice ${n ? 'ok' : 'warn'} full`;
+    note.innerHTML = r.empty ? 'Ese PDF es una imagen escaneada: no tiene texto para leer. Pide al cliente el RUT descargado de la DIAN (PDF original) o escribe los datos.' : n ? `RUT leído: ${n} dato(s) completados${tax.includes('48') ? ' · <b>Responsable de IVA</b>' : tax.includes('49') ? ' · <b>No responsable de IVA</b>' : ''}. Revisa antes de guardar.` : `${r.isRut ? 'No pude ubicar los datos en este RUT.' : 'Ese PDF no parece un RUT de la DIAN.'} Escribe los datos a mano.`;
+  } catch (e) {
+    note.className = 'notice warn full';
+    note.textContent = `No se pudo leer el PDF (${e?.message || e}). Si tiene contraseña, pide el RUT sin protección.`;
+  }
+}
+
+/** Aviso temprano si el número ya pertenece a otro cliente. */
+function checkDuplicatePhone(form, ignoreId = null) {
+  const box = $('[data-dup]', form);
+  if (!box) return;
+  const nums = ['phone', 'whatsapp'].map((k) => normalizePhone(form.elements[k]?.value)).filter(Boolean);
+  const dup = nums.length ? S().clients.find((c) => c.id !== ignoreId && [c.phone, c.whatsapp].some((x) => nums.includes(normalizePhone(x)))) : null;
+  box.hidden = !dup;
+  if (dup) box.innerHTML = `Ese número ya es de <b>${esc(dup.tradeName)}</b>. <a href="#/cliente/${dup.id}" data-dup-open>Abrir ese cliente</a>`;
+}
+
+export function clientForm(existing = null, opts = {}) {
   const s = S();
-  const c = existing || { companyIds: defaultCompany() ? [defaultCompany()] : [], status: 'activo', terms: {}, tags: [] };
+  const pre = opts.prefill || {};
+  const startCo = opts.companyId || defaultCompany();
+  const c = existing || { companyIds: startCo ? [startCo] : [], status: 'activo', terms: {}, tags: [], ...pre };
   const categories = [...new Set(s.clients.map((x) => x.category).filter(Boolean))];
   const termsFor = (co) => {
     const t = c.terms?.[co] || {};
@@ -161,7 +237,15 @@ export function clientForm(existing = null) {
       ${field({ name: `term_${co}`, label: 'Condición de pago general', type: 'select', value: t.termDays ?? '', options: [{ value: '', label: `General (${s.settings.defaultTermDays} días)` }, { value: '0', label: 'Contado' }, { value: '7', label: '7 días' }, { value: '15', label: '15 días' }, { value: '30', label: '30 días' }, { value: '45', label: '45 días' }, { value: '60', label: '60 días' }, ...(t.termDays != null && ![0, 7, 15, 30, 45, 60].includes(t.termDays) ? [{ value: String(t.termDays), label: `${t.termDays} días` }] : [])] })}
       ${field({ name: `limit_${co}`, label: 'Cupo de crédito (opcional)', type: 'money', value: t.creditLimit || '', help: '0 o vacío = sin cupo definido.' })}</div></fieldset>`;
   };
+  const importer = existing ? '' : `<div class="import-bar full">
+      <div class="ib-row"><label class="btn btn-secondary btn-small">📄 Leer RUT (PDF)<input type="file" accept="application/pdf,.pdf" data-rut hidden></label><button type="button" class="btn btn-secondary btn-small" data-paste>${'📋'} Pegar datos</button>${canPickContacts() ? '<button type="button" class="btn btn-plain btn-small" data-pick-contact>👤 Desde mis contactos</button>' : ''}</div>
+      <small class="muted">Sube el <b>RUT en PDF</b> que te mandó el cliente, o copia en WhatsApp su número o mensaje y toca <b>Pegar datos</b>. También puedes compartir el RUT, un mensaje o un contacto de WhatsApp directo a esta app.</small>
+      <div class="ib-paste" hidden><textarea name="pasteText" rows="4" placeholder="Pega aquí el mensaje, el número o los datos del cliente"></textarea><button type="button" class="btn btn-primary btn-small" data-apply-paste>Usar estos datos</button></div>
+      ${opts.sourceText ? `<details class="ib-source" open><summary>Datos recibidos de WhatsApp</summary><p class="pre">${esc(opts.sourceText.slice(0, 600))}</p></details>` : ''}
+    </div>`;
   const body = `<div class="grid2">
+    ${importer}
+    <div class="notice warn full" data-dup hidden></div>
     ${field({ name: 'tradeName', label: 'Nombre comercial', value: c.tradeName, required: true, placeholder: 'Ej. Distribuciones La 80' })}
     ${field({ name: 'legalName', label: 'Razón social', value: c.legalName })}
     ${field({ name: 'taxId', label: 'NIT o identificación', value: c.taxId })}
@@ -187,7 +271,62 @@ export function clientForm(existing = null) {
     subtitle: existing ? `${esc(existing.code)}` : 'Los datos marcados con * son obligatorios.',
     body,
     wide: true,
-    onOpen: (form) => bindMoneyPreviews(form),
+    onOpen: (form, close) => {
+      bindMoneyPreviews(form);
+      $('[data-dup]', form).addEventListener('click', (e) => {
+        if (e.target.closest('[data-dup-open]')) close();
+      });
+      const paneBox = $('.ib-paste', form);
+      const apply = (text) => {
+        const data = parseContactText(text);
+        const n = fillClientForm(form, data);
+        if (n) toast(`Listo: ${n} dato(s) completados. Revisa y agrega lo que falte.`);
+        else toast('No encontré nombre ni número en ese texto. Revisa lo que pegaste.', 'error');
+        return n;
+      };
+      $('[data-paste]', form)?.addEventListener('click', async () => {
+        // Se abre el cuadro de una vez; si el celular deja leer el portapapeles, se llena solo.
+        paneBox.hidden = false;
+        const ta = $('[name=pasteText]', form);
+        ta.focus();
+        try {
+          const text = await Promise.race([navigator.clipboard.readText(), new Promise((_, rej) => setTimeout(() => rej(new Error('tiempo')), 5000))]);
+          if (text && text.trim() && !ta.value.trim() && apply(text)) paneBox.hidden = true;
+        } catch {
+          /* sin permiso: se pega a mano en el cuadro */
+        }
+      });
+      $('[data-rut]', form)?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (file) await applyRut(form, file);
+      });
+      $('[data-apply-paste]', form)?.addEventListener('click', () => {
+        const ta = $('[name=pasteText]', form);
+        if (apply(ta.value)) {
+          ta.value = '';
+          paneBox.hidden = true;
+        }
+      });
+      $('[data-pick-contact]', form)?.addEventListener('click', async () => {
+        try {
+          const [picked] = await navigator.contacts.select(await contactProps(), { multiple: false });
+          if (!picked) return;
+          const n = fillClientForm(form, fromPickedContact(picked));
+          toast(n ? 'Contacto cargado. Agrega la dirección y lo demás.' : 'Ese contacto no tiene nombre ni teléfono.', n ? 'ok' : 'error');
+        } catch (e) {
+          if (e?.name !== 'AbortError') toast('No se pudo abrir la agenda de contactos en este celular.', 'error');
+        }
+      });
+      form.addEventListener('input', (e) => {
+        if (['phone', 'whatsapp'].includes(e.target.name)) checkDuplicatePhone(form, existing?.id);
+      });
+      if (opts.rutFile) applyRut(form, opts.rutFile);
+      if (!existing && Object.keys(pre).length) {
+        for (const k of CONTACT_FIELDS) if (pre[k] && form.elements[k]) form.elements[k].classList.add('just-filled');
+        checkDuplicatePhone(form);
+      }
+    },
     onSubmit: async (fd) => {
       const companyIds = ACTIVE_COMPANY_IDS.filter((co) => fd.get(`co_${co}`));
       const terms = {};

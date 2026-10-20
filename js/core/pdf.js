@@ -14,6 +14,8 @@ export function toWinAnsi(str) {
     else if ((c >= 0x20 && c <= 0x7e) || (c >= 0xa0 && c <= 0xff)) out.push(c);
     else if (CP1252[ch]) out.push(CP1252[ch]);
     else if (c === 0x0a || c === 0x09) out.push(0x20);
+    else if (c === 0x2212) out.push(0x2d); // signo menos → guion
+    else if (c === 0x2264 || c === 0x2265) out.push(c === 0x2264 ? 0x3c : 0x3e);
     else out.push(0x3f);
   }
   return out;

@@ -1,6 +1,7 @@
 // Punto de entrada: arranque, navegación y manejo de acciones.
 import { localDate, formatDateTime } from './core/dates.js';
-import { pctToBps, bpsToPct } from './core/money.js';
+import { parsePesos, pctToBps, bpsToPct } from './core/money.js';
+import { normalizePhone } from './domain/whatsapp.js';
 import { makeBackup, readBackup } from './domain/backup.js';
 import { createClient, setClientStatus } from './domain/clients.js';
 import { cancelSettlement, confirmPolicy, createSettlement, markSettlementPaid, updateRules } from './domain/commissions.js';
@@ -29,6 +30,11 @@ import { explainCommission, renderCommissions } from './ui/views-commissions.js'
 import { afterPersonalize, applyAppearance, personalizeHandlers, renderPersonalize, userAvatar } from './ui/personalize.js';
 import { showLock, watchLock, whenUnlocked } from './ui/lock.js';
 import { openSearch } from './ui/search.js';
+import { phLogo, phProductQuery, phProductRows, renderPhHome, renderPhProducts, renderPhProfile, renderPhSale, renderPhSales, renderPhSupplier, renderPhSuppliers } from './ui/views-pethome.js';
+import { phNoteForm, phPaymentForm, phProductForm, phPurchaseForm, phPurchasePayForm, phSaleForm, phSupplierForm } from './ui/forms-pethome.js';
+import { chargeAccountPdf, paymentReceiptPdf } from './ui/pdf-pethome.js';
+import { completeSupplierFollowUp, importShopifyOrders, loadPetHomeCatalog, saleTotals, setPhCost, updatePhProfile, voidPhPayment, voidPhSale } from './domain/pethome.js';
+import { parseContactText } from './domain/contact-parse.js';
 import { handleAgendaAction, renderAgenda, renderHome } from './ui/views-home.js';
 import { renderAudit, renderConfig, renderData, renderGoals, renderHelp, renderMore, renderPetHome, renderProducts, renderReports } from './ui/views-more.js';
 import { renderDocument, renderSales, salesQuery, salesResults } from './ui/views-sales.js';
@@ -51,12 +57,33 @@ const FAB_ITEMS = [
   ['new-client', 'userPlus', 'Nuevo cliente'],
   ['new-task', 'calendar', 'Programar tarea'],
 ];
-const SECTION = { personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
+const PH_NAV = [
+  ['ph', 'home', 'Resumen'],
+  ['ph-ventas', 'receipt', 'Ventas'],
+  ['ph-proveedores', 'users', 'Proveedores'],
+  ['ph-productos', 'package', 'Productos'],
+  ['mas', 'grid', 'Más'],
+];
+const PH_FAB = [
+  ['ph-new-sale', 'receipt', 'Venta Alegría'],
+  ['ph-new-purchase', 'package', 'Compra a proveedor'],
+  ['ph-note', 'message', 'Anotar conversación con proveedor'],
+  ['ph-new-supplier', 'userPlus', 'Nuevo proveedor'],
+  ['ph-new-product', 'plus', 'Nuevo producto'],
+];
+const GENERIC_ROUTES = ['mas', 'personalizar', 'datos', 'config', 'ayuda', 'auditoria', 'pethome'];
+const isPhRoute = (n) => n === 'ph' || n.startsWith('ph-');
+const SECTION = { 'ph-venta': 'ph-ventas', 'ph-proveedor': 'ph-proveedores', 'ph-perfil': 'ph', personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
 
 async function render() {
   const main = $('#main');
   const r = route();
+  // Las rutas deciden el modo: Alegría (ph-*) o el CRM de las empresas.
+  if (isPhRoute(r.name) && ui.scope !== 'pethome') setScope('pethome');
+  else if (!isPhRoute(r.name) && !GENERIC_ROUTES.includes(r.name) && ui.scope === 'pethome') setScope(ui.lastCrmScope || 'todas');
+  renderChrome();
   const sec = SECTION[r.name] || r.name;
+  const focusKey = document.activeElement?.dataset?.phCost ? `[data-ph-cost="${document.activeElement.dataset.phCost}"]` : document.activeElement?.dataset?.phPrice ? `[data-ph-price="${document.activeElement.dataset.phPrice}"]` : null;
   $$('[data-nav-item]').forEach((a) => a.classList.toggle('active', a.dataset.navItem === sec));
   $$('button[data-scope]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scope === ui.scope)));
   document.body.dataset.activeScope = ui.scope;
@@ -78,6 +105,13 @@ async function render() {
       case 'datos': html = await renderData(); break;
       case 'config': html = renderConfig(); break;
       case 'personalizar': html = renderPersonalize(); break;
+      case 'ph': html = renderPhHome(r.params); break;
+      case 'ph-ventas': html = renderPhSales(r.params); break;
+      case 'ph-venta': html = renderPhSale(r.id); break;
+      case 'ph-proveedores': html = renderPhSuppliers(); break;
+      case 'ph-proveedor': html = renderPhSupplier(r.id); break;
+      case 'ph-productos': html = renderPhProducts(r.params); break;
+      case 'ph-perfil': html = renderPhProfile(); break;
       case 'pethome': html = renderPetHome(); break;
       case 'auditoria': html = renderAudit(); break;
       case 'ayuda': html = renderHelp(); break;
@@ -106,6 +140,22 @@ async function render() {
   window.scrollTo(0, y);
   lastRoute = r.name;
   if (r.name === 'personalizar') afterPersonalize();
+  if (focusKey) $(focusKey)?.focus({ preventScroll: true });
+}
+
+let chromeKey = '';
+function renderChrome() {
+  const ph = ui.scope === 'pethome';
+  document.body.dataset.mode = ph ? 'pethome' : 'crm';
+  if (chromeKey === (ph ? 'ph' : 'crm')) return;
+  chromeKey = ph ? 'ph' : 'crm';
+  const nav = (ph ? PH_NAV : NAV).map(([k, i, l]) => `<a href="#/${k}" data-nav-item="${k}">${icon(i)}<span>${l}</span></a>`).join('');
+  $('#nav-main').innerHTML = nav;
+  $('#nav-top').innerHTML = nav;
+  $('#nav-top').style.setProperty('--n', ph ? PH_NAV.length : NAV.length);
+  $('#fab-menu').innerHTML = (ph ? PH_FAB : FAB_ITEMS).map(([act, ic, label, kind]) => `<button type="button" data-act="${act}"${kind ? ` data-kind="${kind}"` : ''}>${icon(ic)}${label}</button>`).join('');
+  const brand = $('.brand.mobile-only');
+  if (brand) brand.innerHTML = ph ? `${phLogo(34)}<b>Alegría Pet Home</b>` : `${monogram(34)}<b>Mi Centro Comercial</b>`;
 }
 let lastRoute = '';
 let lastKey = '';
@@ -176,6 +226,37 @@ function checkAchievements(reason) {
 /* ---------- Acciones (delegación de eventos) ---------- */
 const handlers = {
   search: () => openSearch(),
+  async shared() {
+    let payload = null;
+    try {
+      const cache = await caches.open('share-inbox');
+      const res = await cache.match(new URL('__compartido', document.baseURI).href);
+      if (res) payload = await res.json();
+      await cache.delete(new URL('__compartido', document.baseURI).href);
+    } catch {
+      /* sin caché disponible */
+    }
+    if (!payload) return toast('No llegó nada para crear el cliente. Intenta compartir de nuevo.', 'error');
+    if (payload.pdf) {
+      let file = null;
+      try {
+        const cache = await caches.open('share-inbox');
+        const key = new URL('__compartido_pdf', document.baseURI).href;
+        const res = await cache.match(key);
+        if (res) file = await res.blob();
+        await cache.delete(key);
+      } catch {
+        /* sin caché */
+      }
+      if (file) return clientForm(null, { rutFile: file, sourceText: 'RUT recibido por WhatsApp (PDF)', companyId: ui.scope !== 'todas' && ui.scope !== 'pethome' ? ui.scope : 'puntazo' });
+    }
+    const vcf = payload.files.find((f) => /vcard|directory/i.test(f.type) || /\.vcf$/i.test(f.name) || /BEGIN:VCARD/i.test(f.text));
+    const raw = vcf ? vcf.text : [payload.title, payload.text, payload.url, ...payload.files.map((f) => f.text)].filter(Boolean).join('\n');
+    const prefill = parseContactText(raw);
+    const source = vcf ? `Contacto compartido${prefill.tradeName ? `: ${prefill.tradeName}` : ''}` : [payload.title, payload.text].filter(Boolean).join('\n');
+    clientForm(null, { prefill, sourceText: source, companyId: ui.scope !== 'todas' && ui.scope !== 'pethome' ? ui.scope : 'puntazo' });
+    if (!prefill.phone && !prefill.tradeName) toast('No encontré nombre ni número en lo compartido. Completa los datos a mano.', 'error');
+  },
   'why-comm': (el) => {
     const x = explainCommission(S(), el.dataset.id);
     if (x) openModal({ title: x.title, subtitle: 'Así se calculó, paso a paso.', body: x.body, cancelText: 'Cerrar' });
@@ -342,6 +423,94 @@ const handlers = {
   },
 };
 
+const PH = () => S().pethome;
+const phSale = (id) => PH().sales.find((x) => x.id === id);
+async function sharePhPdf(bytes, name, title) {
+  const r = await sharePdf(bytes, name.replace(/[\\/:*?"<>|]/g, ''), title);
+  if (r === 'downloaded') toast('PDF descargado. Búscalo en Descargas para enviarlo.');
+}
+function phWhatsApp(sale) {
+  const pf = PH().profile;
+  const t = saleTotals(sale);
+  const first = sale.customerName.split(/\s+/)[0];
+  const text = t.balance
+    ? `Hola ${first}, te comparto la cuenta de cobro ${sale.number} de ${pf.brand}. Total ${money(t.total)}${t.paid ? `, abonado ${money(t.paid)}` : ''}. Saldo pendiente: ${money(t.balance)}.${pf.payInfo ? `\nPuedes pagar a: ${pf.payInfo}` : ''}\n¡Gracias por tu compra! 🐾`
+    : `Hola ${first}, confirmamos el pago total de tu compra ${sale.number} en ${pf.brand} por ${money(t.total)}. ¡Gracias! 🐾`;
+  const phone = normalizePhone(sale.customerPhone);
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+}
+/** Trae el logo publicado en la tienda Shopify (si el CDN lo permite). */
+async function logoFromShopify() {
+  const url = PH().profile.logoUrl;
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const logo = await imageToJpeg(await res.blob(), 480);
+    await exec(updatePhProfile, { logo }, { success: 'Logo de Alegría guardado' });
+  } catch {
+    toast('No pude traer el logo desde Shopify en este momento. Descárgalo de tu tienda y súbelo con "Subir imagen".', 'error');
+  }
+}
+Object.assign(handlers, {
+  async 'ph-load-catalog'() {
+    const r = await exec(loadPetHomeCatalog, {});
+    if (r) toast(`${r.added} producto(s) cargados${r.costs ? ` · ${r.costs} costo(s) recuperados` : ''}${r.suppliers ? ` · ${r.suppliers} proveedor(es) de la versión anterior` : ''}`);
+    if (r && !PH().profile.logo) logoFromShopify();
+  },
+  'ph-new-sale': () => {
+    if (!PH().products.length) toast('Tip: carga primero tus productos de Shopify desde el Resumen.', 'ok');
+    phSaleForm();
+  },
+  'ph-repeat': (el) => phSaleForm(phSale(el.dataset.id)),
+  'ph-pay': (el) => phPaymentForm(el.dataset.id, async (p) => {
+    const sale = phSale(el.dataset.id);
+    toast(`Abono de ${money(p.amount)} registrado`, 'ok', { action: { label: 'Recibo PDF', icon: 'file', onClick: () => sharePhPdf(paymentReceiptPdf(S(), phSale(sale.id), phSale(sale.id).payments.find((x) => x.id === p.id)), `Recibo ${p.number} ${sale.customerName}.pdf`, `Recibo ${p.number}`) } });
+  }),
+  async 'ph-charge-pdf'(el) {
+    const sale = phSale(el.dataset.id);
+    if (!PH().profile.issuerName) toast('Completa en "Mis datos para cobrar" el titular del RUT para que salga en la cuenta.', 'error');
+    try {
+      await sharePhPdf(chargeAccountPdf(S(), sale), `Cuenta de cobro ${sale.number} ${sale.customerName}.pdf`, `Cuenta de cobro ${sale.number}`);
+    } catch (e) {
+      toast(`No se pudo crear el PDF: ${e.message}`, 'error');
+    }
+  },
+  async 'ph-receipt-pdf'(el) {
+    const sale = phSale(el.dataset.id);
+    const pays = sale.payments.filter((p) => p.status === 'activo');
+    const p = el.dataset.pay ? sale.payments.find((x) => x.id === el.dataset.pay) : pays[pays.length - 1];
+    if (!p) return toast('Esta venta no tiene abonos.', 'error');
+    try {
+      await sharePhPdf(paymentReceiptPdf(S(), sale, p), `Recibo ${p.number} ${sale.customerName}.pdf`, `Recibo ${p.number}`);
+    } catch (e) {
+      toast(`No se pudo crear el PDF: ${e.message}`, 'error');
+    }
+  },
+  'ph-wa': (el) => phWhatsApp(phSale(el.dataset.id)),
+  async 'ph-void-sale'(el) {
+    const reason = await confirmDialog({ title: 'Anular venta', message: 'La venta queda anulada con su motivo (no se borra) y sus abonos también.', reason: true, confirmText: 'Anular', danger: true });
+    if (reason) await exec(voidPhSale, { saleId: el.dataset.id, reason }, { success: 'Venta anulada' });
+  },
+  async 'ph-void-pay'(el) {
+    const reason = await confirmDialog({ title: 'Anular abono', message: 'El abono queda anulado (no se borra) y el saldo vuelve a quedar pendiente.', reason: true, confirmText: 'Anular abono', danger: true });
+    if (reason) await exec(voidPhPayment, { saleId: el.dataset.id, paymentId: el.dataset.pay, reason }, { success: 'Abono anulado' });
+  },
+  'ph-new-supplier': () => phSupplierForm(),
+  'ph-edit-supplier': (el) => phSupplierForm(PH().suppliers.find((x) => x.id === el.dataset.id)),
+  'ph-note': (el) => {
+    const id = el.dataset.id || (route().name === 'ph-proveedor' ? route().id : null) || PH().suppliers[0]?.id;
+    if (!id) return toast('Primero crea un proveedor.', 'error');
+    phNoteForm(id);
+  },
+  'ph-note-done': (el) => exec(completeSupplierFollowUp, { noteId: el.dataset.id }, { success: 'Seguimiento hecho' }),
+  'ph-new-purchase': (el) => phPurchaseForm(el.dataset.id || (route().name === 'ph-proveedor' ? route().id : null)),
+  'ph-purchase-pay': (el) => phPurchasePayForm(el.dataset.id),
+  'ph-new-product': () => phProductForm(),
+  'ph-edit-product': (el) => phProductForm(PH().products.find((x) => x.id === el.dataset.id)),
+  'ph-logo-shopify': () => logoFromShopify(),
+  'ph-logo-remove': () => exec(updatePhProfile, { logo: null }, { success: 'Logo quitado' }),
+});
+
 const pz = personalizeHandlers(() => render());
 for (const k of ['set-theme', 'set-palette', 'set-text', 'home-move', 'home-reset', 'photo-remove', 'pin-setup', 'pin-remove', 'bio-on', 'bio-off']) handlers[k] = pz[k];
 
@@ -443,8 +612,12 @@ function goalsForm() {
 document.addEventListener('click', async (e) => {
   const scopeBtn = e.target.closest('button[data-scope]');
   if (scopeBtn) {
-    setScope(scopeBtn.dataset.scope);
-    render();
+    const to = scopeBtn.dataset.scope;
+    const r = route();
+    setScope(to);
+    if (to === 'pethome') navigate(isPhRoute(r.name) ? location.hash : '#/ph');
+    else if (isPhRoute(r.name)) navigate('#/hoy');
+    else render();
     return;
   }
   if (e.target.closest('[data-search]')) return openSearch();
@@ -480,6 +653,38 @@ document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.matches('[data-nav]')) return navigate(t.value);
   if (t.matches('[data-photo]')) return pz.photo(t);
+  if (t.matches('[data-ph-cost],[data-ph-price]')) {
+    const id = t.dataset.phCost || t.dataset.phPrice;
+    const p = S().pethome.products.find((x) => x.id === id);
+    const raw = t.value.trim();
+    const v = raw === '' ? null : parsePesos(raw);
+    if (raw !== '' && !Number.isSafeInteger(v)) return toast('Escribe el valor en pesos, sin letras.', 'error');
+    if (t.dataset.phCost && v === p.cost) return;
+    if (t.dataset.phPrice && (v === p.price || v === null)) return;
+    await exec(setPhCost, t.dataset.phCost ? { productId: id, cost: v } : { productId: id, cost: p.cost, price: v }).catch(() => {});
+    return;
+  }
+  if (t.matches('[data-ph-logo]') && t.files?.[0]) {
+    const file = t.files[0];
+    t.value = '';
+    try {
+      await exec(updatePhProfile, { logo: await imageToJpeg(file, 480) }, { success: 'Logo guardado' });
+    } catch (e) {
+      toast(`No se pudo usar esa imagen: ${e.message}`, 'error');
+    }
+    return;
+  }
+  if (t.matches('[data-ph-import]') && t.files?.[0]) {
+    const file = t.files[0];
+    t.value = '';
+    try {
+      const r = await exec(importShopifyOrders, { text: await file.text() });
+      if (r) openModal({ title: 'Pedidos de Shopify', body: `<p><b>${r.added}</b> pedido(s) nuevos por ${money(r.total)}.</p>${r.skipped.length ? `<p class="muted small">${r.skipped.length} omitido(s): ${esc(r.skipped.slice(0, 20).join(' · '))}</p>` : ''}${r.unmatched.length ? `<div class="notice warn">Estos productos no están en tu lista (quedaron sin costo): ${esc(r.unmatched.join(', '))}</div>` : ''}`, cancelText: 'Cerrar' });
+    } catch {
+      /* exec ya mostró el error */
+    }
+    return;
+  }
   if (t.matches('[data-toggle]')) return pz.toggle(t);
   if (t.matches('[data-home-toggle]')) return pz.homeToggle(t);
   if (t.matches('[data-lock-minutes]')) return pz.lockMinutes(t);
@@ -531,6 +736,10 @@ document.addEventListener('input', (e) => {
   } else if (t.id === 'sales-q') {
     salesQuery.q = t.value;
     $('#sales-results').innerHTML = salesResults(t.dataset.kind);
+  } else if (t.id === 'ph-prod-q' || t.id === 'ph-sim') {
+    phProductQuery.q = $('#ph-prod-q').value;
+    phProductQuery.sim = Math.max(0, Math.min(90, Number(String($('#ph-sim').value).replace(',', '.')) || 0));
+    $('#ph-prod-list').innerHTML = phProductRows();
   } else if (t.id === 'prod-q') {
     const q = t.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     let shown = 0;
@@ -565,6 +774,8 @@ document.addEventListener('submit', async (e) => {
   } else if (f.dataset.form === 'profile') {
     const pf = Object.fromEntries(['legalName', 'nit', 'phone', 'email', 'address', 'city', 'quoteTerms'].map((k) => [k, fd.get(k)]));
     await exec(updateSettings, { companyProfile: { companyId: f.dataset.co, ...pf } }, { success: 'Datos guardados' }).catch(() => {});
+  } else if (f.dataset.form === 'ph-profile') {
+    await exec(updatePhProfile, Object.fromEntries(['brand', 'issuerName', 'issuerId', 'phone', 'email', 'city', 'web', 'payInfo', 'taxNote', 'minMarginPct'].map((k) => [k, fd.get(k)])), { success: 'Datos guardados' }).catch(() => {});
   } else if (f.dataset.form === 'templates') {
     const waTemplates = {};
     for (const [k, v] of fd.entries()) if (k.startsWith('tpl_')) waTemplates[k.slice(4)] = v;
@@ -679,13 +890,10 @@ function watchHostOverlays() {
 }
 
 function shell() {
-  const nav = NAV.map(([k, i, l]) => `<a href="#/${k}" data-nav-item="${k}">${icon(i)}<span>${l}</span></a>`).join('');
-  $('#nav-main').innerHTML = nav;
-  $('#nav-top').innerHTML = nav;
-  $('#fab-menu').innerHTML = FAB_ITEMS.map(([act, ic, label, kind]) => `<button type="button" data-act="${act}"${kind ? ` data-kind="${kind}"` : ''}>${icon(ic)}${label}</button>`).join('');
   $('[data-fab]').innerHTML = icon('plus', { size: 26 });
   $$('[data-search]').forEach((b) => (b.innerHTML = b.classList.contains('side-search') ? `${icon('search', { size: 18 })}<span>Buscar</span><kbd>/</kbd>` : icon('search')));
   $$('[data-monogram]').forEach((el) => (el.outerHTML = monogram(Number(el.dataset.monogram))));
+  renderChrome();
   syncDiscreet();
 }
 
@@ -701,7 +909,7 @@ function syncDiscreet() {
 }
 
 const bootStart = performance.now();
-const SHORTCUTS = { venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'] };
+const SHORTCUTS = { compartido: ['shared'], venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'] };
 /** Atajos del ícono de la app (mantener presionado): #/hoy?do=venta, etc. */
 async function runShortcut() {
   const r = route();

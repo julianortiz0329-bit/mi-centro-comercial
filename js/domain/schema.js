@@ -2,8 +2,10 @@
 // saldo, total y comisión se calcula en los módulos de dominio a partir de
 // estas colecciones; las pantallas nunca calculan por su cuenta.
 
+import { emptyPetHome } from './pethome.js';
+
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '2.4.0';
+export const APP_VERSION = '3.0.0';
 
 /** Reglas comerciales vigentes. Cada comisión guarda una copia de las reglas
  *  aplicadas (rulesSnapshot), así un cambio futuro no altera el historial. */
@@ -148,6 +150,7 @@ export function emptyState() {
     tasks: [],
     audit: [],
     legacy: { petHome: { products: [], suppliers: [] } },
+    pethome: emptyPetHome(),
   };
 }
 
@@ -170,5 +173,8 @@ export function normalizeState(s) {
   if (!out.unlocks || typeof out.unlocks !== 'object') out.unlocks = {};
   if (!out.counters || typeof out.counters !== 'object') out.counters = {};
   if (!out.legacy) out.legacy = base.legacy;
+  const ph = s.pethome || {};
+  out.pethome = { ...base.pethome, ...ph, profile: { ...base.pethome.profile, ...(ph.profile || {}) }, settings: { ...base.pethome.settings, ...(ph.settings || {}) }, counters: { ...base.pethome.counters, ...(ph.counters || {}) } };
+  for (const k of ['products', 'suppliers', 'notes', 'sales', 'purchases']) if (!Array.isArray(out.pethome[k])) out.pethome[k] = [];
   return out;
 }

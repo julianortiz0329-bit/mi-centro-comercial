@@ -59,7 +59,7 @@ function footers(pdf, s, companyId, label) {
 }
 
 /** Tabla genérica con salto de página y encabezado repetido. */
-function table(pdf, y, cols, rows, { onNewPage } = {}) {
+export function table(pdf, y, cols, rows, { onNewPage } = {}) {
   const drawHead = () => {
     pdf.rect(M, y, W - 2 * M, 18, { fill: SOFT });
     let x = M;
@@ -97,7 +97,7 @@ function table(pdf, y, cols, rows, { onNewPage } = {}) {
   return y + 6;
 }
 
-function ensure(pdf, y, needed) {
+export function ensure(pdf, y, needed) {
   if (y + needed > H - 60) {
     pdf.addPage();
     return M;

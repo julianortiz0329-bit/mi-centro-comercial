@@ -36,7 +36,8 @@ const cleanOrder = (o) => {
 };
 
 export const ui = {
-  scope: ['puntazo', 'nogal', 'todas'].includes(p0.scope) ? p0.scope : 'todas',
+  scope: ['puntazo', 'nogal', 'todas', 'pethome'].includes(p0.scope) ? p0.scope : 'todas',
+  lastCrmScope: ['puntazo', 'nogal', 'todas'].includes(p0.lastCrmScope) ? p0.lastCrmScope : 'todas',
   privacy: !!p0.privacy,
   theme: ['auto', 'light', 'dark'].includes(p0.theme) ? p0.theme : 'auto',
   palette: PALETTES[p0.palette] ? p0.palette : 'nogal',
@@ -50,14 +51,15 @@ export const ui = {
 };
 
 export function setScope(scope) {
+  if (scope !== 'pethome') ui.lastCrmScope = scope;
   ui.scope = scope;
   savePrefs();
 }
 
 export function savePrefs() {
   try {
-    const { scope, privacy, theme, palette, text, motion, haptics, photo, homeOrder, homeHidden, lock } = ui;
-    localStorage.setItem(PREF, JSON.stringify({ scope, privacy, theme, palette, text, motion, haptics, photo, homeOrder, homeHidden, lock }));
+    const { scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, photo, homeOrder, homeHidden, lock } = ui;
+    localStorage.setItem(PREF, JSON.stringify({ scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, photo, homeOrder, homeHidden, lock }));
     return true;
   } catch {
     return false; // preferencia opcional (p. ej. almacenamiento lleno)
