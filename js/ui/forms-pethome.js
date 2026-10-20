@@ -11,22 +11,27 @@ const P = () => getState().pethome;
 const methodOptions = Object.entries(PH_METHODS).map(([value, label]) => ({ value, label }));
 const pct = (v) => (v === null ? '—' : `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(v)} %`);
 
-function productOptions(selected = '') {
-  const byCat = new Map();
-  for (const p of P().products.filter((x) => x.active).sort((a, b) => a.name.localeCompare(b.name, 'es'))) {
-    const k = p.category || 'Otros';
-    if (!byCat.has(k)) byCat.set(k, []);
-    byCat.get(k).push(p);
-  }
-  return `<option value="">Escoge un producto…</option>${[...byCat.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([cat, items]) => `<optgroup label="${esc(cat)}">${items.map((p) => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)} · ${money(p.price)}</option>`).join('')}</optgroup>`).join('')}<option value="__otro">Otro (escribir)…</option>`;
+const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Productos que coinciden con lo escrito; sin texto, primero los más vendidos. */
+function findProducts(q) {
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  const sold = new Map();
+  for (const s of P().sales) if (s.status === 'activa') for (const l of s.lines || []) if (l.productId) sold.set(l.productId, (sold.get(l.productId) || 0) + (Number(l.qty) || 1));
+  return P().products
+    .filter((p) => p.active && words.every((w) => fold(`${p.name} ${p.category} ${p.pet} ${(p.variants || []).join(' ')}`).includes(w)))
+    .sort((a, b) => (words.length ? fold(a.name).indexOf(words[0]) - fold(b.name).indexOf(words[0]) : 0) || (sold.get(b.id) || 0) - (sold.get(a.id) || 0) || a.name.localeCompare(b.name, 'es'))
+    .slice(0, 40)
+    .map((p) => ({ p, sold: sold.get(p.id) || 0 }));
 }
 
 function lineRow(kind, l = {}) {
   const priceName = kind === 'sale' ? 'price' : 'cost';
   const priceLabel = kind === 'sale' ? 'Precio c/u' : 'Costo c/u';
   const val = kind === 'sale' ? l.unitPrice : l.unitCost;
+  const prod = l.productId ? P().products.find((x) => x.id === l.productId) : null;
   return `<div class="ph-line" data-line>
-    <div class="field ph-l-prod"><label>Producto</label><select name="product">${productOptions(l.productId || '')}</select><input name="desc" placeholder="Descripción del producto" value="${esc(l.productId ? '' : l.description || '')}" ${l.productId || !l.description ? 'hidden' : ''}></div>
+    <div class="field ph-l-prod picker"><label>Producto</label><input type="search" name="desc" autocomplete="off" enterkeyhint="search" placeholder="Escribe el nombre: pato, rascador, pelota…" value="${esc(prod ? prod.name : l.description || '')}"><input type="hidden" name="product" value="${prod ? prod.id : ''}"><div class="picker-list" role="listbox" hidden></div></div>
     <div class="field ph-l-qty"><label>Cant.</label><input name="qty" inputmode="decimal" value="${esc(l.qty ?? 1)}"></div>
     <div class="field ph-l-price"><label>${priceLabel}</label><input name="${priceName}" inputmode="numeric" value="${val ?? ''}"></div>
     <button type="button" class="icon-btn ph-l-del" data-del aria-label="Quitar">✕</button>
@@ -42,7 +47,7 @@ function readLines(form, kind) {
     const raw = $(`[name=${kind === 'sale' ? 'price' : 'cost'}]`, row).value;
     const v = raw.trim() === '' ? null : parsePesos(raw);
     if (!pid && !desc) return null;
-    const base = { productId: pid && pid !== '__otro' ? pid : null, description: pid && pid !== '__otro' ? '' : desc, qty };
+    const base = { productId: pid || null, description: pid ? '' : desc, qty };
     return kind === 'sale' ? { ...base, unitPrice: v ?? 0 } : { ...base, unitCost: v ?? 0 };
   }).filter(Boolean);
 }
@@ -60,30 +65,61 @@ function bindLines(form, kind, onChange) {
       out.innerHTML = Number.isSafeInteger(p.cost) ? `Costo ${money(p.cost)} · margen <b>${pct(m.pct)}</b>` : 'Sin costo registrado: la ganancia quedará incompleta';
     } else out.innerHTML = Number.isSafeInteger(p.cost) ? `Costo actual ${money(p.cost)} · precio ${money(p.price)}` : `Precio de venta ${money(p.price)}`;
   };
-  box.addEventListener('change', (e) => {
-    const row = e.target.closest('[data-line]');
-    if (e.target.name === 'product') {
-      const desc = $('[name=desc]', row);
-      desc.hidden = e.target.value !== '__otro';
-      if (!desc.hidden) desc.focus();
-      const p = P().products.find((x) => x.id === e.target.value);
-      if (p) {
-        const tgt = $(`[name=${kind === 'sale' ? 'price' : 'cost'}]`, row);
-        tgt.value = kind === 'sale' ? p.price : p.cost ?? '';
-      }
-    }
+  const showList = (inp) => {
+    const list = inp.parentElement.querySelector('.picker-list');
+    const q = inp.value.trim();
+    const items = findProducts(q);
+    list.innerHTML = items.length
+      ? items.map(({ p, sold }) => `<button type="button" class="picker-item" data-pick="${p.id}"><b>${esc(p.name)}</b><small>${money(p.price)}${Number.isSafeInteger(p.cost) ? ` · costo ${money(p.cost)}` : ''} · ${esc(p.category || 'Otros')}${sold ? ` · ${sold} vendido${sold === 1 ? '' : 's'}` : ''}</small></button>`).join('')
+      : `<p class="picker-empty">Ningún producto se llama así. Se guardará como “${esc(q)}”.</p>`;
+    list.hidden = !q && !items.length;
+  };
+  const choose = (row, p) => {
+    $('[name=desc]', row).value = p.name;
+    $('[name=product]', row).value = p.id;
+    const tgt = $(`[name=${kind === 'sale' ? 'price' : 'cost'}]`, row);
+    tgt.value = kind === 'sale' ? p.price : p.cost ?? '';
+    $('.picker-list', row).hidden = true;
     info(row);
     onChange();
+    haptic(8);
+    $('[name=qty]', row).select?.();
+  };
+  box.addEventListener('focusin', (e) => e.target.name === 'desc' && showList(e.target));
+  box.addEventListener('focusout', (e) => e.target.name === 'desc' && setTimeout(() => {
+    const l = e.target.parentElement?.querySelector('.picker-list');
+    if (l) l.hidden = true;
+  }, 180));
+  box.addEventListener('mousedown', (e) => e.target.closest('[data-pick]') && e.preventDefault());
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pick]');
+    if (b) choose(b.closest('[data-line]'), P().products.find((x) => x.id === b.dataset.pick));
   });
+  box.addEventListener('keydown', (e) => {
+    if (e.target.name !== 'desc' || e.key !== 'Enter') return;
+    const first = e.target.parentElement.querySelector('[data-pick]');
+    if (first && !e.target.parentElement.querySelector('.picker-list').hidden) {
+      e.preventDefault();
+      first.click();
+    }
+  });
+  box.addEventListener('change', () => onChange());
   box.addEventListener('input', (e) => {
     const row = e.target.closest('[data-line]');
+    if (row && e.target.name === 'desc') {
+      // Escribir otra cosa suelta el producto elegido (queda como descripción libre).
+      const pid = $('[name=product]', row);
+      const p = P().products.find((x) => x.id === pid.value);
+      if (p && p.name !== e.target.value) pid.value = '';
+      showList(e.target);
+    }
     if (row) info(row);
     onChange();
   });
   form.addEventListener('click', (e) => {
     if (e.target.closest('[data-add-line]')) {
       box.insertAdjacentHTML('beforeend', lineRow(kind));
-      $('[data-line]:last-child select', box)?.focus();
+      $('[data-line]:last-child [name=desc]', box)?.focus();
       onChange();
     }
     const del = e.target.closest('[data-del]');

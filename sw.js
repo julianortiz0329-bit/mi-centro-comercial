@@ -1,7 +1,7 @@
 // Service worker: la app funciona sin conexión. Estrategia: RED PRIMERO para
 // que cada actualización publicada llegue de inmediato; si no hay internet se
 // usa la copia guardada. Los datos viven en IndexedDB (no en caché).
-const VERSION = 'mcc-v3.1.0';
+const VERSION = 'mcc-v3.2.0';
 const ASSETS = [
   './',
   './index.html',
@@ -65,6 +65,7 @@ const ASSETS = [
   './js/domain/rut-parse.js',
   './js/ui/rut-reader.js',
   './js/ui/motion.js',
+  './js/ui/gestures.js',
   './vendor/pdfjs/pdf.min.mjs',
   './vendor/pdfjs/pdf.worker.min.mjs',
   './fonts/fraunces-latin.woff2',

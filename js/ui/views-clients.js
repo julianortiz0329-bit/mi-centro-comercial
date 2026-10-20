@@ -36,19 +36,20 @@ export function clientAvatar(c, size = 40, tone = null) {
 export function clientCard(c) {
   const k = clientKpis(S(), c.id, ui.scope === 'todas' ? null : ui.scope);
   const tone = clientTone(k, c);
-  return `<article class="card client-card tone-${tone.key}">
+  const wa = normalizePhone(c.whatsapp || c.phone) ? '1' : '';
+  return `<div class="swipe-host" data-swipe-client="${c.id}" data-has-wa="${wa}"><div class="swipe-under" aria-hidden="true"><span class="su-wa">${icon('message', { size: 20 })} WhatsApp</span><span class="su-pay">Registrar cobro ${icon('cash', { size: 20 })}</span></div><article class="card client-card tone-${tone.key}">
     <a class="card-main cc-main" href="#/cliente/${c.id}">${clientAvatar(c, 44, tone)}<div class="cc-body"><div class="card-title">${esc(c.tradeName)} ${c.status !== 'activo' ? pill(CLIENT_STATUSES[c.status], statusTone[c.status]) : ''}</div>
     <div class="card-sub">${esc([c.city, c.category].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
     <div class="card-meta">${coChips(c)}${k.overdue ? `<span class="danger">Vencido <b>${money(k.overdue)}</b></span>` : k.balance ? `<span>Saldo <b>${money(k.balance)}</b></span>` : '<span class="ok-text">Al día</span>'}${k.lastPurchase ? `<span>Últ. compra ${formatDate(k.lastPurchase)}</span>` : ''}</div></div></a>
     <div class="card-actions">${normalizePhone(c.whatsapp || c.phone) ? `<button class="btn btn-wa btn-xs" data-act="wa" data-client="${c.id}">WhatsApp</button><a class="btn btn-plain btn-xs" href="${telLink(c.phone || c.whatsapp)}">Llamar</a>` : ''}<button class="btn btn-plain btn-xs" data-act="activity" data-client="${c.id}">Gestión</button></div>
-  </article>`;
+  </article></div>`;
 }
 
 export function clientResults() {
   const s = S();
   const list = searchClients(s, { ...clientQuery, companyId: ui.scope === 'todas' ? null : ui.scope }).sort((a, b) => a.tradeName.localeCompare(b.tradeName, 'es'));
   if (!list.length) return empty('👥', clientQuery.q ? 'Sin coincidencias' : 'Aún no tienes clientes aquí', clientQuery.q ? 'Prueba con otro nombre, teléfono, ciudad, NIT o código.' : 'Agrega tu primer cliente o impórtalos desde un CSV en Datos.', '<button class="btn btn-primary" data-act="new-client">＋ Nuevo cliente</button>');
-  return `<div class="legend-row"><span class="muted small">${list.length} cliente(s)</span><span class="legend"><i class="t-green"></i>Al día<i class="t-amber"></i>Por vencer<i class="t-red"></i>Vencido</span></div><div class="cards">${list.slice(0, 300).map(clientCard).join('')}</div>${list.length > 300 ? '<p class="muted">Mostrando 300. Usa la búsqueda para acotar.</p>' : ''}`;
+  return `<div class="legend-row"><span class="muted small">${list.length} cliente(s)</span><span class="legend"><i class="t-green"></i>Al día<i class="t-amber"></i>Por vencer<i class="t-red"></i>Vencido</span></div><p class="swipe-hint">${icon('arrowRight', { size: 14 })} Desliza un cliente: a la derecha WhatsApp, a la izquierda cobro. Mantén presionado para más.</p><div class="cards">${list.slice(0, 300).map(clientCard).join('')}</div>${list.length > 300 ? '<p class="muted">Mostrando 300. Usa la búsqueda para acotar.</p>' : ''}`;
 }
 
 export function renderClients(params) {

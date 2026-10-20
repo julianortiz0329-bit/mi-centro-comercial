@@ -18,7 +18,7 @@ import { setGoals, updateSettings } from './domain/settings.js';
 import { buildAgenda } from './domain/agenda.js';
 import { dailySnapshot, listSnapshots, requestPersistentStorage } from './store/persistence.js';
 import { getState, initStore, replaceState, run, subscribe } from './store/store.js';
-import { $, $$, bindMoneyPreviews, confirmDialog, download, errorMessage, esc, exec, field, haptic, money, openModal, readMoney, requestId, toast } from './ui/dom.js';
+import { $, $$, bindMoneyPreviews, confirmDialog, download, errorMessage, esc, exec, field, haptic, HAPTIC, money, openModal, readMoney, requestId, toast } from './ui/dom.js';
 import { exportData } from './ui/exports.js';
 import { activityForm, clientForm, dispatchForm, documentForm, paymentForm, productForm, taskForm, whatsappComposer } from './ui/forms.js';
 import { navigate, route, savePrefs, setScope, ui } from './ui/state.js';
@@ -30,6 +30,7 @@ import { explainCommission, renderCommissions } from './ui/views-commissions.js'
 import { afterPersonalize, applyAppearance, personalizeHandlers, renderPersonalize, userAvatar } from './ui/personalize.js';
 import { showLock, watchLock, whenUnlocked } from './ui/lock.js';
 import { openSearch } from './ui/search.js';
+import { bindGestures } from './ui/gestures.js';
 import { bindRipple, bindTilt, bounce, markMorph, odometer, paintGrain, setSections, sparkle, swapScreen, syncNavPill } from './ui/motion.js';
 import { phLogo, phProductQuery, phProductRows, renderPhHome, renderPhProducts, renderPhProfile, renderPhSale, renderPhSales, renderPhSupplier, renderPhSuppliers } from './ui/views-pethome.js';
 import { phNoteForm, phPaymentForm, phProductForm, phPurchaseForm, phPurchasePayForm, phSaleForm, phSupplierForm } from './ui/forms-pethome.js';
@@ -46,7 +47,7 @@ const NAV = [
   ['clientes', 'users', 'Clientes'],
   ['ventas', 'receipt', 'Ventas'],
   ['cartera', 'wallet', 'Cartera'],
-  ['comisiones', 'coins', 'Comisiones'],
+  ['comisiones', 'coins', 'Comisiones', 'Comisión'],
   ['mas', 'grid', 'Más'],
 ];
 const FAB_ITEMS = [
@@ -61,8 +62,8 @@ const FAB_ITEMS = [
 const PH_NAV = [
   ['ph', 'home', 'Resumen'],
   ['ph-ventas', 'receipt', 'Ventas'],
-  ['ph-proveedores', 'users', 'Proveedores'],
-  ['ph-productos', 'package', 'Productos'],
+  ['ph-proveedores', 'users', 'Proveedores', 'Proveed.'],
+  ['ph-productos', 'package', 'Productos', 'Catálogo'],
   ['mas', 'grid', 'Más'],
 ];
 const PH_FAB = [
@@ -84,6 +85,7 @@ async function render() {
   if (isPhRoute(r.name) && ui.scope !== 'pethome') setScope('pethome');
   else if (!isPhRoute(r.name) && !GENERIC_ROUTES.includes(r.name) && ui.scope === 'pethome') setScope(ui.lastCrmScope || 'todas');
   renderChrome();
+  renderGreeting();
   const sec = SECTION[r.name] || r.name;
   const focusKey = document.activeElement?.dataset?.phCost ? `[data-ph-cost="${document.activeElement.dataset.phCost}"]` : document.activeElement?.dataset?.phPrice ? `[data-ph-price="${document.activeElement.dataset.phPrice}"]` : null;
   $$('[data-nav-item]').forEach((a) => a.classList.toggle('active', a.dataset.navItem === sec));
@@ -161,13 +163,40 @@ function renderChrome() {
   document.body.dataset.mode = ph ? 'pethome' : 'crm';
   if (chromeKey === (ph ? 'ph' : 'crm')) return;
   chromeKey = ph ? 'ph' : 'crm';
-  const nav = (ph ? PH_NAV : NAV).map(([k, i, l]) => `<a href="#/${k}" data-nav-item="${k}">${icon(i)}<span>${l}</span></a>`).join('');
-  $('#nav-main').innerHTML = nav;
-  $('#nav-top').innerHTML = nav;
-  $('#nav-top').style.setProperty('--n', ph ? PH_NAV.length : NAV.length);
+  const list = ph ? PH_NAV : NAV;
+  $('#nav-main').innerHTML = list.map(([k, i, l]) => `<a href="#/${k}" data-nav-item="${k}">${icon(i)}<span>${l}</span></a>`).join('');
+  const items = list.map(([k, i, l, sh]) => `<a href="#/${k}" data-nav-item="${k}" aria-label="${l}">${icon(i)}<span>${sh || l}</span></a>`);
+  // Barra de abajo: mitad de secciones a cada lado del botón + central.
+  const half = Math.floor(items.length / 2);
+  $('#nav-top').innerHTML = `<div class="tb-half">${items.slice(0, half).join('')}</div><span class="tb-gap" aria-hidden="true"></span><div class="tb-half">${items.slice(half).join('')}</div>`;
   $('#fab-menu').innerHTML = (ph ? PH_FAB : FAB_ITEMS).map(([act, ic, label, kind]) => `<button type="button" data-act="${act}"${kind ? ` data-kind="${kind}"` : ''}>${icon(ic)}${label}</button>`).join('');
+  greetKey = '';
+}
+
+/** Saludo con el resumen del día y el contador de vencidos en Cartera. */
+let greetKey = '';
+function renderGreeting() {
+  const ph = ui.scope === 'pethome';
+  const h = new Date().getHours();
+  const hello = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const name = (S().settings.sellerName || '').trim().split(/\s+/)[0];
+  const ag = ph ? [] : buildAgenda(S(), 'todas').filter((x) => x.type === 'cobro');
+  const today = ag.filter((x) => x.days <= 0).length;
+  const late = ag.filter((x) => x.days < 0).length;
+  const sub = ph ? 'Alegría Pet Home' : today ? `${today} cobro${today === 1 ? '' : 's'} para hoy` : 'Sin cobros pendientes hoy';
+  // En Hoy y en el Resumen la pantalla ya saluda: arriba va el nombre de la app.
+  const home = ['hoy', 'ph'].includes(route().name);
+  const key = `${ph}|${hello}|${name}|${sub}|${late}|${home}`;
+  if (key === greetKey) return;
+  greetKey = key;
   const brand = $('.brand.mobile-only');
-  if (brand) brand.innerHTML = ph ? `${phLogo(34)}<b>Alegría Pet Home</b>` : `${monogram(34)}<b>Mi Centro Comercial</b>`;
+  const title = home ? (ph ? 'Alegría Pet Home' : 'Mi Centro Comercial') : `${hello}${name ? `, ${name}` : ''}`;
+  const line = home && ph ? 'Tu tienda de mascotas' : sub;
+  if (brand) brand.innerHTML = `${ph ? phLogo(34) : monogram(34)}<div class="greet"><b>${esc(title)}</b><small>${esc(line)}</small></div>`;
+  for (const a of $$('[data-nav-item="cartera"]')) {
+    a.querySelector('.nav-badge')?.remove();
+    if (late) a.insertAdjacentHTML('beforeend', `<i class="nav-badge" aria-label="${late} vencidos">${late > 99 ? '99+' : late}</i>`);
+  }
 }
 let lastRoute = '';
 let lastKey = '';
@@ -890,29 +919,6 @@ function notifyIfNeeded(force = false) {
   }
 }
 
-// Algunos hostings gratuitos (p. ej. "Powered by Netlify") ponen un botón fijo
-// abajo. Se detecta y se mide para dejarle espacio a las barras y botones.
-const APP_NODES = new Set(['modal-root', 'toast-root']);
-function measureHostOverlay() {
-  let offset = 0;
-  for (const el of document.body.children) {
-    if (el.classList.contains('app') || APP_NODES.has(el.id) || ['SCRIPT', 'STYLE', 'NOSCRIPT', 'LINK'].includes(el.tagName) || el.classList.contains('skip')) continue;
-    const cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-    const r = el.getBoundingClientRect();
-    const fixedLike = cs.position === 'fixed' || cs.position === 'sticky';
-    if (fixedLike && r.height > 0 && r.height < 200 && r.bottom > window.innerHeight - 120) offset = Math.max(offset, Math.ceil(window.innerHeight - r.top + 6));
-  }
-  if (!offset && /\.netlify\.app$/.test(location.hostname)) offset = 64;
-  document.body.style.setProperty('--host-badge', `${Math.min(offset, 140)}px`);
-}
-function watchHostOverlays() {
-  measureHostOverlay();
-  new MutationObserver(measureHostOverlay).observe(document.body, { childList: true });
-  [500, 1500, 4000, 8000].forEach((t) => setTimeout(measureHostOverlay, t));
-  window.addEventListener('resize', measureHostOverlay);
-}
-
 function shell() {
   $('[data-fab]').innerHTML = icon('plus', { size: 26 });
   $$('[data-search]').forEach((b) => (b.innerHTML = b.classList.contains('side-search') ? `${icon('search', { size: 18 })}<span>Buscar</span><kbd>/</kbd>` : icon('search')));
@@ -933,13 +939,14 @@ function syncDiscreet() {
 }
 
 const bootStart = performance.now();
-const SHORTCUTS = { compartido: ['shared'], venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'] };
+const SHORTCUTS = { compartido: ['shared'], venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'], alegria: ['ph-new-sale'] };
 /** Atajos del ícono de la app (mantener presionado): #/hoy?do=venta, etc. */
 async function runShortcut() {
   const r = route();
   const sc = SHORTCUTS[r.params.get('do')];
   if (!sc) return;
-  history.replaceState(null, '', '#/hoy');
+  history.replaceState(null, '', sc[0] === 'ph-new-sale' ? '#/ph' : '#/hoy');
+  if (sc[0] === 'ph-new-sale') render();
   await whenUnlocked();
   const el = document.createElement('button');
   if (sc[1]) el.dataset.kind = sc[1];
@@ -955,7 +962,6 @@ async function boot() {
   setSections(SECTION);
   window.addEventListener('resize', () => syncNavPill(false));
   shell();
-  watchHostOverlays();
   try {
     const r = await initStore();
     if (r.source === 'migrated') toast('Tus datos de la versión anterior se migraron. Revisa el informe en Datos.');
@@ -976,6 +982,20 @@ async function boot() {
   if (ui.lock) showLock(lockProfile());
   watchLock(lockProfile);
   await render();
+  bindGestures({
+    fire: (act, clientId) => {
+      const el = document.createElement('button');
+      el.dataset.client = clientId;
+      handlers[act]?.(el);
+    },
+    sections: () => ({ list: (ui.scope === 'pethome' ? PH_NAV : NAV).map((x) => x[0]), current: route().name }),
+    canPull: () => ['hoy', 'ph'].includes(route().name),
+    onRefresh: async () => {
+      lastKey = '';
+      await render();
+      haptic(HAPTIC.ok);
+    },
+  });
   checkAchievements('init');
   runShortcut();
   document.addEventListener('keydown', (e) => {

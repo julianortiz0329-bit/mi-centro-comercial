@@ -22,7 +22,7 @@ export function salesResults(kind) {
     .filter((d) => d.kind === kind && (ui.scope === 'todas' || d.companyId === ui.scope) && (!salesQuery.status || d.status === salesQuery.status || (salesQuery.status === 'con_saldo' && saleBalance(s, d) > 0)))
     .filter((d) => !q || `${d.number} ${d.externalRef} ${clientName(d.clientId)}`.toLowerCase().includes(q))
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.createdAt.localeCompare(a.createdAt));
-  if (!list.length) return empty('🧾', `Sin ${DOC_KINDS[kind].toLowerCase()}s`, 'Registra el primero con el botón de arriba.', '');
+  if (!list.length) return q || salesQuery.status ? empty('🧾', 'Sin coincidencias', 'Prueba con otro número, cliente o filtro.') : empty('🧾', `Aún no tienes ${DOC_KINDS[kind].toLowerCase()}s aquí`, kind === 'venta' ? 'Cada venta crea la cuenta por cobrar y suma a tu meta.' : 'Regístralo en un minuto desde aquí.', `<button class="btn btn-primary" data-act="new-doc" data-kind="${kind}">＋ ${kind === 'venta' ? 'Registrar la primera venta' : kind === 'pedido' ? 'Registrar el primer pedido' : 'Hacer la primera cotización'}</button>`);
   return `<p class="muted small">${list.length} documento(s)</p><div class="cards">${list.slice(0, 300).map((d) => {
     const bal = d.kind === 'venta' ? saleBalance(s, d) : null;
     return `<a class="card card-main" href="#/doc/${d.id}"><div class="card-title">${esc(d.number)} · ${esc(clientName(d.clientId))} ${pill(statusLabel(d), tone(d))}</div>

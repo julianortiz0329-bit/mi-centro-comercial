@@ -14,6 +14,9 @@ export function esc(v) {
 
 export const money = formatCOP;
 
+/** Vibraciones con significado: cada acción se siente distinta. */
+export const HAPTIC = { tap: 8, press: 18, ok: [10, 60, 14], warn: [24, 50, 24], error: [40, 60, 40, 60, 40] };
+
 /** Vibración corta si el usuario la tiene activada. */
 export function haptic(pattern = 12) {
   if (ui.haptics) navigator.vibrate?.(pattern);
@@ -49,6 +52,8 @@ export function toast(msg, kind = 'ok', { action = null, duration = null } = {})
     el.style.setProperty('--life', `${ms}ms`);
   }
   root.appendChild(el);
+  if (kind === 'error') haptic(HAPTIC.error);
+  else if (kind === 'warn') haptic(HAPTIC.warn);
   while (root.children.length > 3) root.firstElementChild.remove();
   setTimeout(() => el.remove(), ms);
   return el;
@@ -265,8 +270,31 @@ export function bindMoneyPreviews(root) {
         haptic(8);
       });
     }
-    input.addEventListener('input', upd);
+    input.addEventListener('input', () => {
+      liveThousands(input);
+      upd();
+    });
     upd();
+  }
+}
+
+/** Pone los puntos de miles mientras se escribe (45000 → 45.000) sin mover el cursor. */
+function liveThousands(input) {
+  const v = input.value;
+  if (!/^\d[\d.]*$/.test(v)) return; // "1,2 M", "45m"… se dejan como están
+  const digits = v.replace(/\./g, '');
+  if (digits.length < 4 || /\.\d{1,2}$/.test(v) && v.split('.').length === 2) return;
+  const formatted = digits.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  if (formatted === v) return;
+  const caret = input.selectionStart ?? v.length;
+  const before = v.slice(0, caret).replace(/\./g, '').length;
+  input.value = formatted;
+  let pos = 0;
+  for (let n = 0; pos < formatted.length && n < before; pos++) if (formatted[pos] !== '.') n++;
+  try {
+    input.setSelectionRange(pos, pos);
+  } catch {
+    /* algunos tipos de campo no tienen cursor */
   }
 }
 

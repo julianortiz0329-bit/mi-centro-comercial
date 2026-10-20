@@ -20,7 +20,7 @@ export function carteraResults() {
     if (carteraQuery.minValue && r.balance < Number(carteraQuery.minValue)) return false;
     return !q || `${c?.tradeName} ${r.doc.number} ${r.doc.externalRef}`.toLowerCase().includes(q);
   });
-  if (!list.length) return empty('✅', 'Sin cuentas en esta vista', 'No hay saldos pendientes con estos filtros.');
+  if (!list.length) return empty('✅', 'Sin cuentas en esta vista', 'No hay saldos pendientes con estos filtros. ¡Vas al día!', '<button class="btn btn-plain" data-act="new-doc" data-kind="venta">＋ Registrar una venta</button>');
   return `<p class="muted small">${list.length} cuenta(s) · ${money(list.reduce((a, r) => a + r.balance, 0))} · ordenadas por prioridad</p><div class="cards">${list.map((r) => {
     const c = s.clients.find((x) => x.id === r.doc.clientId);
     return `<article class="card rec ${r.daysLate > 0 ? 'late' : ''}">
