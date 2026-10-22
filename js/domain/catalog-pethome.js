@@ -1,5 +1,6 @@
 // Catálogo de Alegría Pet Home tomado de la tienda Shopify (alegriapethome.com)
-// el 20-oct-2026. Precio de venta al público en COP (Alegría hoy no cobra IVA).
+// (20-oct-2026, actualizado el 22-oct-2026: 77 productos). Precio de venta al
+// público en COP. Los productos sin tipo en Shopify quedan "Sin categoría".
 // Shopify no tiene costos cargados: el costo se registra en la app.
 // [id Shopify, nombre, categoría, mascota, precio, variantes]
 export const PETHOME_LOGO_URL = 'https://cdn.shopify.com/s/files/1/0853/5638/0402/files/logo.webp?v=1789332849';
@@ -73,5 +74,38 @@ export const PETHOME_CATALOG = [
   [15419906949362, 'Vaso juguete para gato', 'Juguetes para gatos', 'gatos', 50900],
   [15419907113202, 'Centro de juegos interactivo de pez', 'Juguetes para gatos', 'gatos', 74900],
   [15419908423922, 'Bola remolino automática recargable', 'Juguetes para gatos', 'gatos', 81000],
-  [15442613403890, 'Semana refresco (combo)', 'Combos', 'perros', 98910],
+  [15442613403890, 'Semana refresco (combo)', 'Combos', 'perros', 91620],
+  [15456130072818, 'Pato Jeep juguete resistente', 'Sin categoría', 'perros', 48900],
+  [15456130793714, 'Pato Jeep vaquero', 'Sin categoría', 'perros', 46900],
+  [15456149274866, 'Pato Jeep capitán', 'Sin categoría', 'perros', 46900],
+  [15456150520050, 'Pelota Flexy', 'Sin categoría', 'perros', 28900],
+  [15456153272562, 'Hueso Flexy', 'Sin categoría', 'perros', 34900],
+  [15456186892530, 'Cocodrilo cuello resorte', 'Sin categoría', 'perros', 22900],
+  [15456194986226, 'Jirafa cuello resorte', 'Sin categoría', 'perros', 22900],
+  [15456201146610, 'Flamenco cuello resorte', 'Sin categoría', 'perros', 22900],
 ];
+
+// "Handle" de Shopify de cada producto (es la llave de la exportación CSV de
+// productos), para reconocerlos aunque el nombre en la app sea distinto.
+export const PETHOME_HANDLES = {
+  9261015433458: 'juguete-deportivo-de-rugby', 9266097389810: 'peluche-pato', 9266107810034: 'peluche-gallo', 9274717077746: 'anillo-jalador',
+  9274730512626: 'pelota-superebote', 9274737819890: 'juguete-fuerza-de-queso', 9274767540466: 'juguete-fuerza-de-hotdog', 9274773537010: 'juguete-fuerza-de-chuleton',
+  9274781499634: 'juguete-de-fibra-de-madera-set-x3', 10311365689586: 'juguete-deportivo-de-futbol', 10311366181106: 'pelota-de-animales-cerdo-y-vaca',
+  10311367786738: 'pelotas-de-animales-pollito-y-cordero', 10311368343794: 'juguete-resistente-de-elefante', 10311368409330: 'juguete-resistente-de-zorro',
+  10311369359602: 'juguete-resistente-de-ardilla', 10311369621746: 'juguete-resistente-pollito', 10311371063538: 'cuerda-de-fuerza', 10314206544114: 'peluche-pulpo-verde',
+  10314211492082: 'peluche-tortuga-marina', 10314243997938: 'peluche-cangrejo', 10314245439730: 'juguete-resistente-pez-payaso', 10314246684914: 'juguete-resistente-ballena',
+  10314247831794: 'juguete-resistente-pulpo', 10314253959410: 'bolitas-triki-set-x3', 10314254614770: 'bolitas-de-raton-set-x-3', 10314255007986: 'bolitas-de-la-granja-set-x-3',
+  10314256351474: 'rascador-zanahoria', 10314258153714: 'rascador-arbol-de-palma', 10314258448626: 'rascador-planta-en-maceta', 10314259333362: 'rascador-torre-frutal',
+  15391634751730: 'pelota-super-resistentes-pina', 15391636717810: 'pelota-super-resistente-calabaza', 15391636848882: 'pelota-super-resistente-brocoli',
+  15391636914418: 'pelota-super-resistente-cebolla', 15391637143794: 'paleta-refrescante', 15391637307634: 'cono-refrescante', 15391638159602: 'tapete-refrecante',
+  15391638683890: 'peluche-con-cuerda-de-dinosaurio', 15391638847730: 'peluche-burbuja-de-pina', 15391639273714: 'guantes-de-lavado-sin-agua', 15391639372018: 'dispensador-de-bolsas',
+  15391639503090: 'toallitas-para-mascotas-avenas-x-100', 15391639666930: 'anillos-de-fuerza', 15391640518898: 'snacks-paticas-de-pollo-x-500-gr',
+  15391640944882: 'snack-paticas-de-pollo-x-50-gr', 15391641043186: 'snacks-de-cabano-x-50-gr', 15391641207026: 'snacks-de-cabano-x-1-kl', 15391641305330: 'hueso-deshidratado-x-100-gr',
+  15392035209458: 'gimnasio-sencillo', 15392035340530: 'gimnasio-doble', 15392035635442: 'bolso-transportador-classic', 15392035832050: 'bolso-space', 15392036749554: 'bolso-kitty',
+  15392036913394: 'bolso-basic', 15392711868658: 'gimnasio-con-plataforma', 15392713408754: 'cepillo-autolimpiante', 15392716914930: 'cepillo-de-vapor', 15392903069938: 'fuente-classic',
+  15392909197554: 'fuente-udine', 15392916570354: 'comedero-2-en-1', 15394397913330: 'fuente-niagara', 15394619687154: 'maleta-transport', 15419903901938: 'set-sardinas-5-piezas',
+  15419904753906: 'set-de-sardinas-9-piezas', 15419905540338: 'set-juguetes-varios-6-piezas', 15419906949362: 'vaso-juguete-para-gato', 15419907113202: 'centro-de-juegos-interactivos-de-pez',
+  15419908423922: 'bola-remolino-automatica-recargable', 15442613403890: 'semana-refresco', 15456130072818: 'pato-jeep-juguete-resistente', 15456130793714: 'pato-jeep-vaquero',
+  15456149274866: 'pato-jeep-capitan', 15456150520050: 'pelota-flexy', 15456153272562: 'hueso-flexy', 15456186892530: 'cocodrilo-cuello-resorte', 15456194986226: 'jirafa-cuello-resorte',
+  15456201146610: 'flamenco-cuello-resorte',
+};

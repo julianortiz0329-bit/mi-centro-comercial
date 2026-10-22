@@ -1,14 +1,23 @@
 // Formularios de Alegría Pet Home.
 import { addDays, localDate } from '../core/dates.js';
 import { parseDecimal, parsePesos } from '../core/money.js';
-import { addPhPayment, addPurchasePayment, addSupplierNote, createPhSale, createPurchase, PH_CHANNELS, PH_METHODS, PH_NOTE_CHANNELS, productMargin, purchaseTotals, saleTotals, savePhProduct, saveSupplier, voidPhSale } from '../domain/pethome.js';
+import { addPhPayment, addPurchasePayment, addSupplierNote, createPhSale, createPurchase, setPurchaseDueDate, PH_CHANNELS, PH_METHODS, PH_NOTE_CHANNELS, IVA_RATES, productMargin, purchaseTotals, saleTotals, savePhProduct, saveSupplier, voidPhSale } from '../domain/pethome.js';
 import { getState, run } from '../store/store.js';
+import { supplierTermDays } from '../domain/ledger.js';
 import { $, $$, bindMoneyPreviews, errorMessage, esc, exec, field, haptic, money, openModal, readMoney, requestId, toast } from './dom.js';
 import { navigate } from './state.js';
 import { cobroDone, markPaid } from './motion.js';
 
 const P = () => getState().pethome;
-const methodOptions = Object.entries(PH_METHODS).map(([value, label]) => ({ value, label }));
+// Medio de pago = cuenta del libro (así el dinero cae en la caja correcta).
+const accountOptions = () => {
+  const accs = (getState().ledger?.accounts || []).filter((a) => a.active);
+  return accs.length ? accs.map((a) => ({ value: a.id, label: a.name })) : Object.entries(PH_METHODS).map(([value, label]) => ({ value, label }));
+};
+const defAccount = (pref) => {
+  const accs = (getState().ledger?.accounts || []).filter((a) => a.active);
+  return (accs.find((a) => a.method === pref) || accs[0])?.id || pref;
+};
 const pct = (v) => (v === null ? '—' : `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(v)} %`);
 
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -25,15 +34,20 @@ function findProducts(q) {
     .map((p) => ({ p, sold: sold.get(p.id) || 0 }));
 }
 
+const ivaSelect = (v) => `<div class="field ph-l-iva"><label>IVA</label><select name="iva">${IVA_RATES.map((r) => `<option value="${r}" ${Number(v) === r ? 'selected' : ''}>${r} %</option>`).join('')}</select></div>`;
+const withIva = (kind) => kind === 'purchase' || !!P().profile.ivaResponsable;
+
 function lineRow(kind, l = {}) {
   const priceName = kind === 'sale' ? 'price' : 'cost';
-  const priceLabel = kind === 'sale' ? 'Precio c/u' : 'Costo c/u';
+  const priceLabel = kind === 'sale' ? (P().profile.ivaResponsable ? 'Precio c/u (con IVA)' : 'Precio c/u') : 'Costo c/u (antes de IVA)';
   const val = kind === 'sale' ? l.unitPrice : l.unitCost;
   const prod = l.productId ? P().products.find((x) => x.id === l.productId) : null;
-  return `<div class="ph-line" data-line>
+  const iva = l.ivaPct ?? prod?.ivaPct ?? 19;
+  return `<div class="ph-line${withIva(kind) ? ' has-iva' : ''}" data-line>
     <div class="field ph-l-prod picker"><label>Producto</label><input type="search" name="desc" autocomplete="off" enterkeyhint="search" placeholder="Escribe el nombre: pato, rascador, pelota…" value="${esc(prod ? prod.name : l.description || '')}"><input type="hidden" name="product" value="${prod ? prod.id : ''}"><div class="picker-list" role="listbox" hidden></div></div>
     <div class="field ph-l-qty"><label>Cant.</label><input name="qty" inputmode="decimal" value="${esc(l.qty ?? 1)}"></div>
     <div class="field ph-l-price"><label>${priceLabel}</label><input name="${priceName}" inputmode="numeric" value="${val ?? ''}"></div>
+    ${withIva(kind) ? ivaSelect(iva) : ''}
     <button type="button" class="icon-btn ph-l-del" data-del aria-label="Quitar">✕</button>
     <small class="ph-l-info" data-info></small>
   </div>`;
@@ -47,7 +61,8 @@ function readLines(form, kind) {
     const raw = $(`[name=${kind === 'sale' ? 'price' : 'cost'}]`, row).value;
     const v = raw.trim() === '' ? null : parsePesos(raw);
     if (!pid && !desc) return null;
-    const base = { productId: pid || null, description: pid ? '' : desc, qty };
+    const ivaSel = $('[name=iva]', row);
+    const base = { productId: pid || null, description: pid ? '' : desc, qty, ...(ivaSel ? { ivaPct: Number(ivaSel.value) } : {}) };
     return kind === 'sale' ? { ...base, unitPrice: v ?? 0 } : { ...base, unitCost: v ?? 0 };
   }).filter(Boolean);
 }
@@ -61,7 +76,7 @@ function bindLines(form, kind, onChange) {
     if (!p) return (out.textContent = '');
     if (kind === 'sale') {
       const price = parsePesos($('[name=price]', row).value);
-      const m = Number.isSafeInteger(price) ? productMargin(p, price) : { pct: null };
+      const m = Number.isSafeInteger(price) ? productMargin(p, price, p.cost, Number($('[name=iva]', row)?.value || 0)) : { pct: null };
       out.innerHTML = Number.isSafeInteger(p.cost) ? `Costo ${money(p.cost)} · margen <b>${pct(m.pct)}</b>` : 'Sin costo registrado: la ganancia quedará incompleta';
     } else out.innerHTML = Number.isSafeInteger(p.cost) ? `Costo actual ${money(p.cost)} · precio ${money(p.price)}` : `Precio de venta ${money(p.price)}`;
   };
@@ -79,6 +94,8 @@ function bindLines(form, kind, onChange) {
     $('[name=product]', row).value = p.id;
     const tgt = $(`[name=${kind === 'sale' ? 'price' : 'cost'}]`, row);
     tgt.value = kind === 'sale' ? p.price : p.cost ?? '';
+    const ivaSel = $('[name=iva]', row);
+    if (ivaSel) ivaSel.value = String(p.ivaPct ?? 19);
     $('.picker-list', row).hidden = true;
     info(row);
     onChange();
@@ -138,7 +155,7 @@ export function phSaleForm(prefill = null) {
   const rid = requestId();
   openModal({
     title: prefill ? 'Repetir venta' : 'Nueva venta · Alegría',
-    subtitle: 'Precios sin IVA. Puedes dejar un saldo pendiente y cobrarlo con una cuenta de cobro.',
+    subtitle: P().profile.ivaResponsable ? 'Precios con IVA incluido, como en la tienda. Puedes dejar un saldo pendiente y cobrarlo con una cuenta de cobro.' : 'Alegría no cobra IVA (puedes cambiarlo en Datos para cobrar). Puedes dejar un saldo pendiente y cobrarlo con una cuenta de cobro.',
     wide: true,
     submitText: 'Registrar venta',
     body: `<div class="grid2">
@@ -162,28 +179,23 @@ export function phSaleForm(prefill = null) {
     <input type="hidden" name="paidMode" value="todo">
     <div class="grid2" style="margin-top:10px">
       <div data-paid-amount hidden>${field({ name: 'paidAmount', label: 'Valor del abono', type: 'money', value: '' })}</div>
-      <div data-paid-method>${field({ name: 'method', label: 'Medio de pago', type: 'select', value: 'nequi', options: methodOptions })}</div>
+      <div data-paid-method>${field({ name: 'method', label: '¿A qué cuenta entró?', type: 'select', value: defAccount('nequi'), options: accountOptions() })}</div>
       <div data-due hidden>${field({ name: 'dueDate', label: 'Fecha para pagar el saldo', type: 'date', value: addDays(localDate(), 15) })}</div>
     </div>
     ${field({ name: 'notes', label: 'Notas', type: 'textarea', full: true })}`,
     onOpen: (form) => {
       bindMoneyPreviews(form);
       const recompute = () => {
-        const ls = readLines(form, 'sale');
-        const sub = ls.reduce((a, l) => a + Math.round((l.unitPrice || 0) * (Number.isFinite(l.qty) ? l.qty : 0)), 0);
-        const disc = parsePesos($('[name=discount]', form).value || '0') || 0;
-        const ship = parsePesos($('[name=shipping]', form).value || '0') || 0;
-        const shipCost = parsePesos($('[name=shippingCost]', form).value || '0') || 0;
-        const total = sub - disc + ship;
-        let cogs = 0;
+        const ls = readLines(form, 'sale').filter((l) => Number.isFinite(l.qty) && Number.isSafeInteger(l.unitPrice));
+        const num = (n) => parsePesos($(`[name=${n}]`, form).value || '0') || 0;
         let unknown = false;
-        for (const l of ls) {
+        const lines = ls.map((l) => {
           const p = P().products.find((x) => x.id === l.productId);
-          if (p && Number.isSafeInteger(p.cost)) cogs += Math.round(p.cost * l.qty);
-          else unknown = true;
-        }
-        const profit = sub - disc - cogs + ship - shipCost;
-        $('[data-totals]', form).innerHTML = `<div><span>Total</span><b>${money(total)}</b></div><div><span>Tu ganancia</span><b>${unknown ? '—' : money(profit)}</b></div><div><span>Margen</span><b>${!unknown && total ? pct(Math.round((profit / total) * 1000) / 10) : '—'}</b></div>${unknown && ls.length ? '<small class="muted">Algún producto no tiene costo: ponlo en Productos para ver tu ganancia.</small>' : ''}`;
+          if (!p || !Number.isSafeInteger(p.cost)) unknown = true;
+          return { ...l, ivaPct: P().profile.ivaResponsable ? l.ivaPct ?? 19 : 0, unitCost: p?.cost ?? 0 };
+        });
+        const t = saleTotals({ lines, discount: num('discount'), shipping: num('shipping'), shippingCost: num('shippingCost'), payments: [] });
+        $('[data-totals]', form).innerHTML = `<div><span>Total</span><b>${money(t.total)}</b></div>${t.iva ? `<div><span>IVA incluido</span><b>${money(t.iva)}</b></div>` : ''}<div><span>Tu ganancia</span><b>${unknown ? '—' : money(t.profit)}</b></div><div><span>Margen</span><b>${!unknown && t.marginPct !== null ? pct(t.marginPct) : '—'}</b></div>${unknown && ls.length ? '<small class="muted">Algún producto no tiene costo: ponlo en Productos para ver tu ganancia.</small>' : ''}`;
       };
       bindLines(form, 'sale', recompute);
       form.addEventListener('input', (e) => {
@@ -233,7 +245,7 @@ export function phPaymentForm(saleId, onSaved) {
     title: `Abono de ${esc(sale.customerName)}`,
     subtitle: `${esc(sale.number)} · debe ${money(t.balance)}`,
     submitText: 'Registrar abono',
-    body: `<div class="grid2">${field({ name: 'amount', label: 'Valor recibido', type: 'money', value: t.balance, required: true })}${field({ name: 'date', label: 'Fecha', type: 'date', value: localDate(), required: true })}${field({ name: 'method', label: 'Medio de pago', type: 'select', value: 'nequi', options: methodOptions })}${field({ name: 'note', label: 'Referencia (opcional)' })}</div>`,
+    body: `<div class="grid2">${field({ name: 'amount', label: 'Valor recibido', type: 'money', value: t.balance, required: true })}${field({ name: 'date', label: 'Fecha', type: 'date', value: localDate(), required: true })}${field({ name: 'method', label: '¿A qué cuenta entró?', type: 'select', value: defAccount('nequi'), options: accountOptions() })}${field({ name: 'note', label: 'Referencia (opcional)' })}</div>`,
     onOpen: (form) => bindMoneyPreviews(form),
     onSubmit: async (fd) => {
       const p = await exec(addPhPayment, { saleId, amount: readMoney(fd, 'amount', { label: 'El abono' }), date: fd.get('date'), method: fd.get('method'), note: fd.get('note') }, { success: 'Abono registrado' });
@@ -305,7 +317,8 @@ export function phPurchaseForm(supplierId) {
       ${field({ name: 'supplierId', label: 'Proveedor', type: 'select', value: supplierId || sups[0].id, options: sups.map((x) => ({ value: x.id, label: x.name })), required: true })}
       ${field({ name: 'date', label: 'Fecha', type: 'date', value: localDate(), required: true })}
       ${field({ name: 'invoiceRef', label: 'Factura o remisión (opcional)' })}
-      ${field({ name: 'dueDate', label: 'Fecha para pagarle (si queda debiendo)', type: 'date', value: '' })}
+      ${field({ name: 'plazo', label: 'Plazo para pagarle', type: 'select', value: '', options: [{ value: '', label: 'De contado (sin crédito)' }, ...[8, 15, 30, 45, 60, 90].map((d) => ({ value: String(d), label: `A ${d} días` })), { value: 'fecha', label: 'Otra fecha…' }] })}
+      ${field({ name: 'dueDate', label: 'Vence (fecha para pagarle)', type: 'date', value: '', help: 'Se calcula con el plazo. Si negociaron otra fecha, cámbiala.' })}
     </div>
     <h3 class="form-section">Productos</h3>
     <div data-lines>${lineRow('purchase')}</div>
@@ -314,7 +327,7 @@ export function phPurchaseForm(supplierId) {
       ${field({ name: 'discount', label: 'Descuento del proveedor (en pesos)', type: 'money', value: '' })}
       ${field({ name: 'shipping', label: 'Flete o envío', type: 'money', value: '' })}
       ${field({ name: 'paidAmount', label: 'Cuánto le pagaste ya', type: 'money', value: '', help: 'Vacío = le debes todo.' })}
-      ${field({ name: 'method', label: 'Medio de pago', type: 'select', value: 'transferencia', options: methodOptions })}
+      ${field({ name: 'method', label: '¿De qué cuenta salió?', type: 'select', value: defAccount('bancolombia'), options: accountOptions() })}
     </div>
     ${field({ name: 'updateCosts', label: 'Actualizar el costo de estos productos con esta compra', type: 'checkbox', value: true, full: true })}
     <div class="ph-totals" data-totals></div>
@@ -322,21 +335,41 @@ export function phPurchaseForm(supplierId) {
     onOpen: (form) => {
       bindMoneyPreviews(form);
       const recompute = () => {
-        const ls = readLines(form, 'purchase');
-        const sub = ls.reduce((a, l) => a + Math.round((l.unitCost || 0) * (Number.isFinite(l.qty) ? l.qty : 0)), 0);
+        const ls = readLines(form, 'purchase').filter((l) => Number.isFinite(l.qty) && Number.isSafeInteger(l.unitCost));
         const disc = parsePesos($('[name=discount]', form).value || '0') || 0;
         const ship = parsePesos($('[name=shipping]', form).value || '0') || 0;
-        $('[data-totals]', form).innerHTML = `<div><span>Total compra</span><b>${money(sub - disc + ship)}</b></div>${sub ? `<div><span>Factor de costo puesto</span><b>× ${((sub - disc + ship) / sub).toFixed(3)}</b></div>` : ''}`;
+        const t = purchaseTotals({ lines: ls, discount: disc, shipping: ship, payments: [] });
+        $('[data-totals]', form).innerHTML = `<div><span>Subtotal antes de IVA</span><b>${money(t.subtotal - disc)}</b></div>${Object.entries(t.ivaByRate).map(([r, v]) => `<div><span>IVA ${r} %</span><b>${money(v)}</b></div>`).join('')}${ship ? `<div><span>Flete</span><b>${money(ship)}</b></div>` : ''}<div><span>Total de la factura</span><b>${money(t.total)}</b></div>${t.iva ? `<small class="muted">${P().profile.ivaResponsable ? 'El IVA de la compra queda como IVA descontable (no suma al costo del producto).' : 'Como Alegría no cobra IVA, el IVA que les cobran se suma al costo de cada producto.'}</small>` : ''}`;
       };
       bindLines(form, 'purchase', recompute);
       form.addEventListener('input', (e) => ['discount', 'shipping'].includes(e.target.name) && recompute());
       recompute();
+      // Plazo: por defecto el del proveedor ("30 días" en sus términos); la fecha se calcula sola.
+      const due = () => {
+        const v = $('[name=plazo]', form).value;
+        const d = $('[name=dueDate]', form);
+        d.closest('.field').hidden = !v;
+        if (v && v !== 'fecha') d.value = addDays($('[name=date]', form).value || localDate(), Number(v));
+      };
+      const supTerm = () => {
+        const sup = P().suppliers.find((x) => x.id === $('[name=supplierId]', form).value);
+        const n = supplierTermDays(sup);
+        const sel = $('[name=plazo]', form);
+        if (n && ![...sel.options].some((o) => o.value === String(n))) sel.insertAdjacentHTML('beforeend', `<option value="${n}">A ${n} días</option>`);
+        sel.value = n ? String(n) : '';
+        due();
+      };
+      form.addEventListener('change', (e) => {
+        if (e.target.name === 'supplierId') supTerm();
+        if (e.target.name === 'plazo' || e.target.name === 'date') due();
+      });
+      supTerm();
     },
     onSubmit: async (fd, form) => {
       const lines = readLines(form, 'purchase');
       if (!lines.length) return toast('Agrega al menos un producto.', 'error'), false;
       const paidAmount = readMoney(fd, 'paidAmount', { required: false, label: 'El pago' });
-      const pu = await exec(createPurchase, { supplierId: fd.get('supplierId'), date: fd.get('date'), invoiceRef: fd.get('invoiceRef'), dueDate: fd.get('dueDate') || null, lines, discount: readMoney(fd, 'discount', { required: false, label: 'El descuento' }), shipping: readMoney(fd, 'shipping', { required: false, label: 'El flete' }), paid: paidAmount ? { amount: paidAmount, method: fd.get('method') } : null, updateCosts: !!fd.get('updateCosts'), notes: fd.get('notes'), requestId: rid }, { success: 'Compra registrada' });
+      const pu = await exec(createPurchase, { supplierId: fd.get('supplierId'), date: fd.get('date'), invoiceRef: fd.get('invoiceRef'), dueDate: fd.get('plazo') ? fd.get('dueDate') || null : null, lines, discount: readMoney(fd, 'discount', { required: false, label: 'El descuento' }), shipping: readMoney(fd, 'shipping', { required: false, label: 'El flete' }), paid: paidAmount ? { amount: paidAmount, method: fd.get('method') } : null, updateCosts: !!fd.get('updateCosts'), notes: fd.get('notes'), requestId: rid }, { success: 'Compra registrada' });
       if (!pu) return false;
     },
   });
@@ -345,12 +378,33 @@ export function phPurchaseForm(supplierId) {
 export function phPurchasePayForm(purchaseId) {
   const pu = P().purchases.find((x) => x.id === purchaseId);
   const t = purchaseTotals(pu);
+  const sup = P().suppliers.find((x) => x.id === pu.supplierId);
+  const prev = pu.payments.filter((p) => p.status === 'activo');
   openModal({
-    title: `Pagar compra ${esc(pu.number)}`,
-    subtitle: `Saldo ${money(t.balance)}`,
-    body: `<div class="grid2">${field({ name: 'amount', label: 'Valor pagado', type: 'money', value: t.balance, required: true })}${field({ name: 'date', label: 'Fecha', type: 'date', value: localDate() })}${field({ name: 'method', label: 'Medio', type: 'select', value: 'transferencia', options: methodOptions })}</div>`,
+    title: `Abonar a ${esc(sup?.name || 'proveedor')}`,
+    subtitle: `${esc(pu.number)}${pu.invoiceRef ? ` · factura ${esc(pu.invoiceRef)}` : ''} · total ${money(t.total)} · abonado ${money(t.paid)} · <b>saldo ${money(t.balance)}</b>${pu.dueDate ? ` · vence ${esc(pu.dueDate.split('-').reverse().join('/'))}` : ''}`,
+    body: `<div class="grid2">${field({ name: 'amount', label: 'Valor del abono', type: 'money', value: t.balance, required: true, help: 'Puedes abonar una parte: el resto queda pendiente.' })}${field({ name: 'date', label: 'Fecha', type: 'date', value: localDate() })}${field({ name: 'method', label: '¿De qué cuenta salió?', type: 'select', value: defAccount('bancolombia'), options: accountOptions() })}${field({ name: 'reference', label: 'Referencia (opcional)', placeholder: 'N.º de transferencia o comprobante' })}${field({ name: 'note', label: 'Nota (opcional)', full: true })}</div>
+    ${prev.length ? `<p class="muted small">Abonos anteriores: ${prev.map((p) => `${money(p.amount)} el ${esc(p.date.split('-').reverse().join('/'))}`).join(' · ')}</p>` : ''}`,
+    submitText: 'Registrar abono',
     onOpen: (form) => bindMoneyPreviews(form),
-    onSubmit: async (fd) => ((await exec(addPurchasePayment, { purchaseId, amount: readMoney(fd, 'amount', { label: 'El pago' }), date: fd.get('date'), method: fd.get('method') }, { success: 'Pago registrado' })) ? undefined : false),
+    onSubmit: async (fd) => {
+      const r = await exec(addPurchasePayment, { purchaseId, amount: readMoney(fd, 'amount', { label: 'El abono' }), date: fd.get('date'), method: fd.get('method'), reference: fd.get('reference'), note: fd.get('note') });
+      if (!r) return false;
+      const left = purchaseTotals(P().purchases.find((x) => x.id === purchaseId)).balance;
+      toast(left ? `Abono registrado · quedan ${money(left)} por pagar` : '¡Factura pagada completa!');
+      if (!left) markPaid(purchaseId);
+    },
+  });
+}
+
+/** Cambiar la fecha de pago acordada con el proveedor. */
+export function phPurchaseDueForm(purchaseId) {
+  const pu = P().purchases.find((x) => x.id === purchaseId);
+  openModal({
+    title: 'Cambiar fecha de pago',
+    subtitle: `${esc(pu.number)} · si el proveedor les dio más plazo o acordaron otra fecha.`,
+    body: `<div class="grid2">${field({ name: 'dueDate', label: 'Nueva fecha', type: 'date', value: pu.dueDate || '' })}${field({ name: 'note', label: 'Motivo (opcional)', placeholder: 'Ej. nos dio 15 días más' })}</div>`,
+    onSubmit: async (fd) => ((await exec(setPurchaseDueDate, { purchaseId, dueDate: fd.get('dueDate') || null, note: fd.get('note') }, { success: 'Fecha actualizada' })) ? undefined : false),
   });
 }
 
@@ -366,7 +420,8 @@ export function phProductForm(existing = null) {
       ${field({ name: 'name', label: 'Nombre', value: x.name, required: true })}
       <div class="field"><label>Categoría</label><input name="category" list="ph-cats" value="${esc(x.category || '')}"><datalist id="ph-cats">${cats.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
       ${field({ name: 'price', label: 'Precio de venta', type: 'money', value: x.price ?? '', required: true })}
-      ${field({ name: 'cost', label: 'Costo (lo que te cuesta)', type: 'money', value: x.cost ?? '' })}
+      ${field({ name: 'cost', label: P().profile.ivaResponsable ? 'Costo sin IVA (lo que te cuesta)' : 'Costo (lo que te cuesta, con IVA si te lo cobran)', type: 'money', value: x.cost ?? '' })}
+      ${field({ name: 'ivaPct', label: 'IVA del producto', type: 'select', value: String(x.ivaPct ?? 19), options: IVA_RATES.map((r) => ({ value: String(r), label: `${r} %` })), help: P().profile.ivaResponsable ? 'Se cobra incluido en el precio de venta.' : 'Hoy Alegría no cobra IVA; se usa como IVA sugerido en las compras.' })}
       ${field({ name: 'supplierId', label: 'Proveedor', type: 'select', value: x.supplierId || '', options: [{ value: '', label: 'Sin proveedor' }, ...P().suppliers.map((s) => ({ value: s.id, label: s.name }))] })}
       ${field({ name: 'pet', label: 'Para', type: 'select', value: x.pet || 'perros', options: ['perros', 'gatos', 'perros y gatos'].map((v) => ({ value: v, label: v })) })}
       ${field({ name: 'variants', label: 'Variantes (separadas por coma)', value: (x.variants || []).join(', ') })}
@@ -380,15 +435,16 @@ export function phProductForm(existing = null) {
       const upd = () => {
         const price = parsePesos($('[name=price]', form).value);
         const cost = parsePesos($('[name=cost]', form).value);
-        const m = Number.isSafeInteger(price) && Number.isSafeInteger(cost) ? productMargin({ price, cost }) : null;
-        $('[data-margin]', form).innerHTML = m ? `<div><span>Ganancia por unidad</span><b>${money(m.profit)}</b></div><div><span>Margen</span><b>${pct(m.pct)}</b></div><div><span>Precio para ${P().settings.minMarginPct} %</span><b>${money(Math.ceil(cost / (1 - P().settings.minMarginPct / 100) / 100) * 100)}</b></div>` : '<small class="muted">Escribe el costo para ver el margen.</small>';
+        const iva = P().profile.ivaResponsable ? Number($('[name=ivaPct]', form).value) : 0;
+        const m = Number.isSafeInteger(price) && Number.isSafeInteger(cost) ? productMargin({ price, cost }, price, cost, iva) : null;
+        $('[data-margin]', form).innerHTML = m ? `<div><span>Ganancia por unidad</span><b>${money(m.profit)}</b></div><div><span>Margen</span><b>${pct(m.pct)}</b></div><div><span>Precio para ${P().settings.minMarginPct} %</span><b>${money(Math.ceil(((cost / (1 - P().settings.minMarginPct / 100)) * (1 + iva / 100)) / 100) * 100)}</b>${iva ? '<small class="muted">con IVA incluido</small>' : ''}</div>` : '<small class="muted">Escribe el costo para ver el margen.</small>';
       };
       form.addEventListener('input', upd);
       upd();
     },
     onSubmit: async (fd) => {
       const cost = String(fd.get('cost') || '').trim();
-      return (await exec(savePhProduct, { id: existing?.id, shopifyId: existing?.shopifyId, name: fd.get('name'), category: fd.get('category'), price: readMoney(fd, 'price', { label: 'El precio' }), cost: cost ? readMoney(fd, 'cost', { label: 'El costo' }) : null, supplierId: fd.get('supplierId') || null, pet: fd.get('pet'), variants: fd.get('variants'), note: fd.get('note'), active: existing ? !!fd.get('active') : true }, { success: 'Producto guardado' })) ? undefined : false;
+      return (await exec(savePhProduct, { id: existing?.id, shopifyId: existing?.shopifyId, name: fd.get('name'), category: fd.get('category'), price: readMoney(fd, 'price', { label: 'El precio' }), cost: cost ? readMoney(fd, 'cost', { label: 'El costo' }) : null, supplierId: fd.get('supplierId') || null, pet: fd.get('pet'), variants: fd.get('variants'), note: fd.get('note'), ivaPct: fd.get('ivaPct'), active: existing ? !!fd.get('active') : true }, { success: 'Producto guardado' })) ? undefined : false;
     },
   });
 }

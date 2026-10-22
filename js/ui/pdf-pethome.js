@@ -99,11 +99,11 @@ export function chargeAccountPdf(s, sale) {
     { label: 'Precio unit.', w: 90, align: 'right' },
     { label: 'Subtotal', w: 110, align: 'right' },
   ];
-  y = table(pdf, y, cols, sale.lines.map((l) => [l.description, num(l.qty), money(l.unitPrice), money(Math.round(l.unitPrice * l.qty))]));
+  y = table(pdf, y, cols, sale.lines.map((l) => [l.ivaPct ? { text: l.description, sub: `IVA ${l.ivaPct} % incluido` } : l.description, num(l.qty), money(l.unitPrice), money(Math.round(l.unitPrice * l.qty))]));
 
   y = ensure(pdf, y, 140);
   const tx = W - M - 230;
-  const rows = [['Subtotal', t.subtotal], sale.discount ? ['Descuento', -sale.discount] : null, sale.shipping ? ['Domicilio', sale.shipping] : null, ['Total de la compra', t.total]].filter(Boolean);
+  const rows = [['Subtotal', t.subtotal], sale.discount ? ['Descuento', -sale.discount] : null, t.iva ? ['Valor sin IVA', t.net] : null, t.iva ? ['IVA incluido', t.iva] : null, sale.shipping ? ['Domicilio', sale.shipping] : null, ['Total de la compra', t.total]].filter(Boolean);
   const pays = sale.payments.filter((p) => p.status === 'activo');
   for (const p of pays) rows.push([`Abono ${formatDate(p.date)} (${PH_METHODS[p.method] || p.method})`, -p.amount]);
   rows.forEach(([k, v], i) => {
@@ -159,4 +159,64 @@ export function paymentReceiptPdf(s, sale, payment) {
   signature(pdf, y, pf);
   footer(pdf, pf, `Recibo ${payment.number}`);
   return pdf.output({ title: `Recibo ${payment.number}` });
+}
+
+/** Informe del mes para los socios: estado de resultados, reparto, cuentas y movimientos. */
+export function monthReportPdf(s, period, { monthResult, partnerBalances, accountBalances, journal, EXPENSE_CATEGORIES, periodLabel, ivaReport }) {
+  const pf = s.pethome.profile;
+  const r = monthResult(s, period);
+  const pdf = new PdfDoc();
+  const label = periodLabel(period);
+  let y = header(pdf, pf, 'INFORME DEL MES', [label.charAt(0).toUpperCase() + label.slice(1), `Generado: ${formatDate(new Date().toISOString().slice(0, 10))}`]);
+  const section = (title) => {
+    y = ensure(pdf, y, 40);
+    pdf.text(title, M, y, { size: 12, bold: true, color: BAND });
+    pdf.line(M, y + 5, W - M, y + 5, { color: ACCENT, width: 0.8 });
+    y += 20;
+  };
+  const row = (text, value, { bold = false, color = INK } = {}) => {
+    y = ensure(pdf, y, 16);
+    pdf.text(text, M + 6, y, { size: 10, bold, color });
+    pdf.text(value, W - M - 6, y, { size: 10, bold, color, align: 'right' });
+    y += 16;
+  };
+  section('Estado de resultados');
+  row(pf.ivaResponsable ? 'Ventas sin IVA' : 'Ventas', money(r.revenue));
+  row('(−) Costo de los productos vendidos', money(r.cogs));
+  if (r.shippingCost) row('(−) Domicilios pagados', money(r.shippingCost));
+  row('Utilidad bruta', money(r.gross), { bold: true });
+  for (const [k, v] of Object.entries(r.byCategory).sort((a, b) => b[1] - a[1])) row(`(−) ${EXPENSE_CATEGORIES[k] || k}`, money(v));
+  pdf.rect(M, y - 11, W - 2 * M, 18, { fill: LIGHT });
+  row(r.profit < 0 ? 'PÉRDIDA DEL MES' : 'UTILIDAD DEL MES', money(r.profit), { bold: true });
+  if (r.missingCostLines) y = paragraph(pdf, y + 4, `Nota: ${r.missingCostLines} producto(s) vendido(s) no tienen costo registrado; la utilidad puede estar por encima de la real.`, { size: 8.5, color: MUTED });
+  y += 8;
+  section('Reparto entre socios');
+  for (const so of s.socios) row(`${so.nombre} (${Number(so.porcentaje)} %)`, money(r.shares[so.id] || 0), { bold: true });
+  y += 8;
+  if (pf.ivaResponsable && ivaReport) {
+    const v = ivaReport(s, `${period}-15`);
+    section(`IVA del ${v.kind === 'bimestral' ? 'bimestre' : 'cuatrimestre'} (${formatDate(v.from)} a ${formatDate(v.to.slice(0, 8) + '28')}) · estimado`);
+    row('IVA cobrado en ventas', money(v.generated));
+    row('(−) IVA pagado en compras', money(v.fromPurchases));
+    row('(−) IVA pagado en gastos', money(v.fromExpenses));
+    row(v.balance >= 0 ? 'IVA a pagar a la DIAN' : 'Saldo a favor', money(Math.abs(v.balance)), { bold: true });
+    y += 8;
+  }
+  section('Cuenta de cada socio (acumulado)');
+  const bal = partnerBalances(s, `${period}-31`);
+  y = table(pdf, y, [{ label: 'Socio', w: 105, bold: true }, { label: 'Aportes', w: 80, align: 'right' }, { label: 'Gastos pagados', w: 82, align: 'right' }, { label: 'Utilidad', w: 80, align: 'right' }, { label: 'Retirado', w: 76, align: 'right' }, { label: 'Saldo', w: 92, align: 'right', bold: true }],
+    Object.values(bal).map((b) => [b.socio.nombre, money(b.contributed + b.loans), money(b.paidExpenses), money(b.profit), money(b.withdrawn), money(b.balance)]));
+  section('Cuentas del negocio');
+  const c = accountBalances(s, `${period}-31`);
+  y = table(pdf, y, [{ label: 'Cuenta', w: 330, bold: true }, { label: 'Saldo al cierre', w: 185, align: 'right' }], [...Object.values(c.accounts).map((v) => [v.account.name, money(v.balance)]), ['Les deben (ventas por cobrar)', money(c.receivable)], ['Deben a proveedores', money(c.payable)]]);
+  const moves = journal(s, period).filter((x) => x.x.status !== 'anulado');
+  if (moves.length) {
+    section('Gastos, aportes y retiros del mes');
+    const kind = { gasto: 'Gasto', aporte: 'Aporte', retiro: 'Retiro', traslado: 'Traslado' };
+    const who = (x) => s.socios.find((z) => z.id === x.socioId)?.nombre || '';
+    y = table(pdf, y, [{ label: 'Fecha', w: 62 }, { label: 'Tipo', w: 60 }, { label: 'Detalle', w: 300 }, { label: 'Valor', w: 93, align: 'right' }],
+      moves.map(({ kind: k, x }) => [formatDate(x.date), kind[k], k === 'gasto' ? { text: x.description, sub: EXPENSE_CATEGORIES[x.category] || '' } : k === 'traslado' ? 'Traslado entre cuentas' : who(x), money(x.amount)]));
+  }
+  footer(pdf, pf, `Informe ${label}`);
+  return pdf.output({ title: `Alegría Pet Home ${label}` });
 }
