@@ -1,4 +1,5 @@
 import { newId } from '../core/ids.js';
+import { ACTIVE_COMPANY_IDS } from './schema.js';
 
 export class DomainError extends Error {
   constructor(message, code = 'invalid', details = null) {
@@ -28,8 +29,19 @@ export function nowOf(ctx) {
 }
 
 export function audit(s, ctx, action, entity, entityId, detail = '') {
-  if (!s.audit) s.audit = [];
   s.audit.push({ id: newId('aud'), at: nowOf(ctx), user: ctx?.user || 'usuario', action, entity, entityId, detail });
+}
+
+export function assertActiveCompany(companyId) {
+  assert(ACTIVE_COMPANY_IDS.includes(companyId), 'Selecciona El Puntazo o Frutos del Nogal.', 'company');
+}
+
+export function nextNumber(s, companyId, kind) {
+  const prefix = { cotizacion: 'COT', pedido: 'PED', venta: 'VEN', pago: 'REC', liquidacion: 'LIQ' }[kind] || kind.toUpperCase();
+  const key = `${companyId}:${kind}`;
+  s.counters[key] = (s.counters[key] || 0) + 1;
+  const short = s.companies[companyId]?.short || companyId.slice(0, 2).toUpperCase();
+  return `${short}-${prefix}-${String(s.counters[key]).padStart(4, '0')}`;
 }
 
 export function byId(list, id) {

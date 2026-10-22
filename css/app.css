@@ -1118,113 +1118,21 @@ body[data-mode="pethome"] .hero .deco-nogal { opacity: 0; }
 @keyframes pm-up { from { transform: translateY(30px) scale(.96); opacity: 0; } }
 .swipe-hint { display: flex; align-items: center; gap: 6px; justify-content: center; color: var(--fg-subtle); font-size: 12px; margin: 4px 0 10px; }
 
-/* ===================== Libro de socios de Alegría (1.0) ===================== */
-:root { --alegria: #f2a65a; --alegria-deep: #d9823a; }
-:root[data-palette="zafiro"] { --fab-a: #f2a65a; --fab-b: #d9823a; --fab-fg: #1b1408; --hero-accent: #f6b77a; }
-body { --scope-accent: var(--alegria); }
-.sp-paw { font-size: 54px; line-height: 1; filter: drop-shadow(0 10px 22px rgb(0 0 0 / .35)); }
-#splash .sp small { color: var(--alegria); }
-
-/* Entrada con clave */
-#lock .login { width: min(360px, 100%); display: grid; gap: 10px; text-align: center; justify-items: stretch; }
-#lock .login h1 { margin: 6px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 28px; }
-#lock .login > p { margin: 0 0 12px; color: var(--alegria); letter-spacing: .2em; text-transform: uppercase; font-size: 11px; font-weight: 700; }
-#lock .login label { text-align: left; font-weight: 650; font-size: 13px; color: color-mix(in srgb, var(--hero-fg) 80%, transparent); }
-#lock .login input { min-height: 50px; border-radius: 14px; border: 1px solid rgb(255 255 255 / .18); background: rgb(255 255 255 / .08); color: var(--hero-fg); padding: 0 14px; font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; text-transform: uppercase; }
-#lock .login input::placeholder { color: rgb(255 255 255 / .35); }
-#lock .login .btn { min-height: 50px; font-size: 16px; }
-#lock .login small { color: color-mix(in srgb, var(--hero-fg) 60%, transparent); line-height: 1.4; }
-
-/* Estado de sincronización */
-.sync-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 650; background: var(--surface-muted); color: var(--fg-muted); white-space: nowrap; }
-.sync-badge.ok { color: var(--positive, #1f8a4c); }
-.sync-badge.warn, .sync-badge.off { color: #b45309; background: #fef3c7; }
-.icon-toggle.warn { color: #b45309; border-color: #f59e0b; }
-
-/* Reparto en la tarjeta del mes */
-.hero-foot.shares { gap: 8px; }
-.share-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 12px; border-radius: 999px; background: rgb(255 255 255 / .1); border: 1px solid rgb(255 255 255 / .16); font-size: 13px; color: var(--hero-fg); }
-.share-chip.me { background: color-mix(in srgb, var(--alegria) 26%, transparent); border-color: color-mix(in srgb, var(--alegria) 55%, transparent); }
-.share-chip b { font-variant-numeric: tabular-nums; }
-
-/* Estado de resultados */
-.pnl-rows { list-style: none; margin: 0; padding: 0; }
-.pnl-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px dashed var(--border); font-variant-numeric: tabular-nums; }
-.pnl-rows li.minus span { padding-left: 12px; color: var(--fg-muted); }
-.pnl-rows li.sub { font-weight: 700; border-bottom-style: solid; }
-.pnl-rows li.total { font-weight: 800; font-size: 17px; border-bottom: 0; padding-top: 12px; border-top: 2px solid var(--fg); margin-top: 4px; }
-.pnl-rows li.share { color: var(--fg-muted); border-bottom: 0; padding: 4px 2px; }
-.pnl-rows li.share:first-of-type { padding-top: 10px; }
-
-/* Libro */
-.journal { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
-.jr { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-card); }
-.jr.off { opacity: .55; }
-.jr.off .jr-amt { text-decoration: line-through; }
-.jr-ico { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-muted); color: var(--fg-muted); }
-.k-gasto .jr-ico { background: #fde8e4; color: #c2410c; }
-.k-aporte .jr-ico { background: #dcfce7; color: #15803d; }
-.k-retiro .jr-ico { background: #fef3c7; color: #b45309; }
-.k-traslado .jr-ico { background: #e0e7ff; color: #4338ca; }
-.jr-main { min-width: 0; display: grid; }
-.jr-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jr-main small { color: var(--fg-muted); font-size: 12px; }
-.jr-amt { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.jr-amt.in { color: #15803d; }
-.jr-amt.out { color: var(--fg); }
-.jr-act { grid-column: 2 / -1; display: flex; gap: 6px; justify-content: flex-end; }
-
-/* Caja */
-details.acc { padding: 0; overflow: hidden; }
-details.acc > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; font-variant-numeric: tabular-nums; }
-details.acc > summary::-webkit-details-marker { display: none; }
-details.acc > summary span { display: grid; }
-details.acc > summary b:last-child { font-size: 17px; }
-details.acc[open] > summary { border-bottom: 1px solid var(--border); }
-details.acc > ul, details.acc > p { padding: 4px 16px 12px; margin: 0; }
-
-/* Socios */
-.cards.socios { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.socio-card.me { border-color: color-mix(in srgb, var(--alegria) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--alegria) 18%, transparent), var(--shadow-card); }
-.socio-card .kv li.total { font-weight: 800; border-top: 1px solid var(--border); padding-top: 8px; }
-.ok-text { color: var(--positive, #1f8a4c); }
-
-/* Más */
-.tiles { display: grid; gap: 8px; margin: 12px 0; }
-.quick-tile.wide { flex-direction: row; justify-content: flex-start; gap: 14px; padding: 14px 16px; text-align: left; text-decoration: none; }
-.quick-tile.wide span { font-size: inherit; display: grid; }
-.quick-tile.wide small { color: var(--fg-muted); font-weight: 500; }
-[data-form="rename"] input { flex: 1 1 160px; min-height: 42px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 12px; }
-.center { text-align: center; }
-
-/* Soporte de gastos */
-.receipt-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; vertical-align: middle; margin-right: 6px; }
-.receipt-full { display: block; width: 100%; height: auto; border-radius: 12px; }
-#lock .login > p.lk-msg { margin: 0; letter-spacing: 0; text-transform: none; font-size: 13.5px; font-weight: 600; color: #ffcfc7; }
-
-/* Facturas por pagar (1.1) */
-.pay-alert { display: flex; align-items: center; gap: 12px; margin: 10px 0; padding: 12px 14px; border-radius: 16px; text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-card); }
-.pay-alert > span { display: grid; flex: 1; min-width: 0; }
-.pay-alert small { color: var(--fg-muted); }
-.pay-alert .ico:first-child { color: #b45309; }
-.pay-alert.late { background: color-mix(in srgb, #dc2626 9%, var(--surface)); border-color: color-mix(in srgb, #dc2626 40%, var(--border)); }
-.pay-alert.late .ico:first-child { color: #dc2626; }
-.bill-group { display: grid; gap: 8px; margin-top: 14px; }
-.bill-group h2 { font-size: 18px; margin: 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.bill-group h2 small { font-family: var(--font-sans); font-weight: 600; font-size: 13px; }
-.card.bill { border-left: 4px solid var(--border); }
-.card.bill.s-vencida, .card.bill.s-hoy { border-left-color: #dc2626; }
-.card.bill.s-pronto { border-left-color: #f59e0b; }
-.card.bill.s-al_dia { border-left-color: #16a34a; }
-.bill-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.bill-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
-.bill-nums span { display: grid; }
-.bill-nums small { color: var(--fg-muted); font-size: 11.5px; }
-.bill-nums .due b { color: var(--fg); font-size: 17px; }
-.bill-status { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 4px 0 10px; }
-.link.danger { color: #dc2626; }
-/* IVA por línea (1.2) */
-.ph-line.has-iva { grid-template-columns: minmax(0, 1fr) 64px 120px 82px 40px; }
-@media (max-width: 520px) { .ph-line.has-iva { grid-template-columns: repeat(3, minmax(0, 1fr)) 40px; } .ph-line.has-iva .ph-l-prod { grid-column: 1 / -1; } }
-.iva-card { display: grid; gap: 6px; }
-.iva-card .iva-due { font-family: var(--font-display); font-size: 24px; }
+/* Alegría: tu parte del mes (3.3) */
+.ale-card { display: flex; align-items: center; gap: 14px; margin: 12px 0; padding: 14px 16px; border-radius: 20px; text-decoration: none; color: var(--fg); background: linear-gradient(135deg, color-mix(in srgb, #f2a65a 16%, var(--surface)), var(--surface) 70%); border: 1px solid color-mix(in srgb, #f2a65a 35%, var(--border)); box-shadow: var(--shadow-card); }
+.ale-card .ale-paw { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; font-size: 22px; background: linear-gradient(145deg, #2c3a57, #141b2b); }
+.ale-card .ale-main { display: grid; min-width: 0; flex: 1; }
+.ale-card .ale-main > small:first-child { color: #c2702b; font-weight: 700; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; }
+.ale-card .ale-main b { font-family: var(--font-display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ale-card .ale-main small { color: var(--fg-muted); }
+.ale-card .ale-side { display: grid; text-align: right; flex: 0 0 auto; }
+.ale-card .ale-side small { color: var(--fg-muted); font-size: 11.5px; }
+.ale-card .ale-side b { font-variant-numeric: tabular-nums; }
+.ale-card.ale-off { background: var(--surface); border-style: dashed; }
+.ale-card.ale-off span { display: grid; flex: 1; }
+.ale-card.ale-off small { color: var(--fg-muted); }
+.mono-input { flex: 1 1 220px; min-height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 12px; font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+body.discreet .ale-card b { filter: blur(7px); }
+.th-wait { display: grid; gap: 2px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 14px; background: var(--gold-soft, #f2ead9); border: 1px dashed color-mix(in srgb, var(--gold) 55%, transparent); }
+.th-wait b { font-family: var(--font-display); font-size: 22px; }
+.th-wait small { color: var(--fg-muted); }

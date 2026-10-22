@@ -1,17 +1,18 @@
 {
-  "name": "Alegría Pet Home · Libro de socios",
-  "short_name": "Alegría",
-  "description": "Libro de socios de Alegría Pet Home: ventas, gastos, aportes, caja y reparto de utilidades.",
+  "name": "Mi Centro Comercial",
+  "short_name": "Centro Comercial",
+  "description": "CRM de El Puntazo y Frutos del Nogal: clientes, ventas, cartera, cobros y comisiones.",
   "id": "./",
-  "start_url": "./#/ph",
+  "start_url": "./#/hoy",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#141b2b",
-  "theme_color": "#26324a",
+  "background_color": "#0f2a22",
+  "theme_color": "#1f4d3e",
   "lang": "es-CO",
   "categories": [
     "business",
+    "productivity",
     "finance"
   ],
   "icons": [
@@ -33,5 +34,76 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Nueva venta",
+      "short_name": "Venta",
+      "url": "./#/hoy?do=venta",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Registrar cobro",
+      "short_name": "Cobro",
+      "url": "./#/hoy?do=cobro",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Registro rápido (voz)",
+      "short_name": "Registro",
+      "url": "./#/hoy?do=registro",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Nuevo pedido",
+      "short_name": "Pedido",
+      "url": "./#/hoy?do=pedido",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "./compartir",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "text/vcard",
+            "text/x-vcard",
+            "text/directory",
+            "text/plain",
+            ".vcf",
+            ".vcard",
+            "application/pdf",
+            ".pdf"
+          ]
+        }
+      ]
+    }
+  }
 }

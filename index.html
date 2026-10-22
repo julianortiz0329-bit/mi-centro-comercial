@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="es" data-palette="zafiro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f2e8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0c110f" media="(prefers-color-scheme: dark)">
-<meta name="description" content="Libro de socios de Alegría Pet Home: ventas, gastos, aportes, caja y reparto de utilidades.">
+<meta name="description" content="CRM comercial de El Puntazo y Frutos del Nogal: clientes, ventas, pedidos, cartera, cobros, comisiones y agenda.">
 <meta name="color-scheme" content="light dark">
-<title>Alegría · Libro de socios</title>
+<title>Mi Centro Comercial</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -15,32 +15,44 @@
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
 <script>
-  // Aplica el tema guardado antes de pintar (evita parpadeo).
+  // Aplica tema y colores guardados antes de pintar (evita parpadeo).
   try {
-    var p = JSON.parse(localStorage.getItem('alegria_ui_prefs') || '{}'), r = document.documentElement;
+    var p = JSON.parse(localStorage.getItem('mcc_ui_prefs') || '{}'), r = document.documentElement;
     if (p.theme === 'light' || p.theme === 'dark') r.dataset.theme = p.theme;
+    if (p.palette) r.dataset.palette = p.palette;
+    if (p.text) r.dataset.text = p.text;
     if (p.motion === false) r.dataset.motion = 'off';
+    if (p.oled) r.dataset.oled = 'on';
+    if (p.lock) r.classList.add('pre-lock');
   } catch (e) {}
 </script>
 <script type="module" src="js/app.js"></script>
 </head>
-<body data-mode="pethome" data-active-scope="pethome">
-<div id="splash" role="presentation"><div class="sp"><span class="sp-paw" aria-hidden="true">🐾</span><b>Alegría Pet Home</b><small>Libro de socios</small></div></div>
+<body>
+<div id="splash" role="presentation"><div class="sp"><span data-monogram="76"></span><b>Mi Centro Comercial</b><small>El Puntazo · Frutos del Nogal</small></div></div>
 <a class="skip" href="#main">Saltar al contenido</a>
 <div id="ambient" aria-hidden="true"><i class="aur"></i><i class="grn"></i></div>
 <div class="app">
   <aside class="sidebar" aria-label="Navegación principal">
-    <div class="brand" data-brand></div>
+    <div class="brand"><span data-monogram="38"></span><div><b>Mi Centro Comercial</b><small>CRM de tus negocios</small></div></div>
+    <button type="button" class="side-search" data-search aria-label="Buscar en toda la app"></button>
     <nav id="nav-main"></nav>
-    <p class="local-tag">🔒 Solo entran los socios con su clave</p>
+    <p class="local-tag">🔒 Datos solo en este dispositivo</p>
   </aside>
   <div class="content">
     <div class="top-stack">
     <header class="topbar">
-      <div class="brand-row"><div class="brand mobile-only" data-brand></div><div class="top-actions"><button type="button" class="icon-toggle" data-act="sync-now" aria-label="Sincronizar" title="Sincronizar" data-sync-btn></button><button type="button" class="icon-toggle" data-discreet aria-pressed="false" aria-label="Ocultar montos" title="Ocultar montos"></button></div></div>
+      <div class="brand-row"><div class="brand mobile-only"><span data-monogram="34"></span><b>Mi Centro Comercial</b></div><div class="top-actions"><button type="button" class="icon-toggle" data-search aria-label="Buscar en toda la app" title="Buscar (tecla /)"></button><button type="button" class="icon-toggle" data-discreet aria-pressed="false" aria-label="Ocultar montos" title="Ocultar montos"></button></div></div>
     </header>
+    <div class="scope-bar">
+      <div class="scope" role="group" aria-label="Empresa">
+        <button type="button" data-scope="puntazo"><span class="dot"></span><span class="lg">El Puntazo</span><span class="sh">Puntazo</span></button>
+        <button type="button" data-scope="nogal"><span class="dot"></span><span class="lg">Frutos del Nogal</span><span class="sh">Nogal</span></button>
+        <button type="button" data-scope="todas"><span class="dot"></span><span class="lg">Consolidado</span><span class="sh">Todas</span></button>
+      </div>
     </div>
-    <main id="main" class="main" tabindex="-1"><p class="loading">Cargando el libro…</p></main>
+    </div>
+    <main id="main" class="main" tabindex="-1"><p class="loading">Cargando tus datos…</p></main>
   </div>
   <nav id="nav-top" class="tab-bar" aria-label="Navegación"></nav>
   <button type="button" class="fab" data-fab aria-haspopup="true" aria-expanded="false" aria-label="Registrar"></button>

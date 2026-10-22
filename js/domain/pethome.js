@@ -7,7 +7,7 @@ import { isValidDate, localDate, periodOf } from '../core/dates.js';
 import { parseDecimal, parsePesos } from '../core/money.js';
 import { assert, audit, cleanText, DomainError, getOrFail, nowOf } from './common.js';
 import { parseCSV } from './csv.js';
-import { PETHOME_CATALOG, PETHOME_HANDLES, PETHOME_LOGO_URL } from './catalog-pethome.js';
+import { PETHOME_CATALOG, PETHOME_LOGO_URL } from './catalog-pethome.js';
 
 export const PH_CHANNELS = { directa: 'Venta directa', whatsapp: 'WhatsApp', instagram: 'Instagram', shopify: 'Tienda Shopify', feria: 'Feria o evento', otro: 'Otro' };
 export const PH_METHODS = { efectivo: 'Efectivo', transferencia: 'Transferencia', nequi: 'Nequi', daviplata: 'Daviplata', bancolombia: 'Bancolombia', tarjeta: 'Tarjeta', otro: 'Otro' };
@@ -26,8 +26,6 @@ export function emptyPetHome() {
       web: 'alegriapethome.com',
       payInfo: '', // p. ej. "Nequi 300 000 0000 a nombre de …"
       taxNote: 'No se cobra IVA en este documento.',
-      ivaResponsable: false, // ¿Alegría cobra IVA en sus ventas?
-      ivaPeriod: 'cuatrimestral', // bimestral | cuatrimestral (declaración de IVA)
       logo: null, // { dataUrl (JPEG), w, h }
       logoUrl: PETHOME_LOGO_URL,
     },
@@ -58,19 +56,6 @@ const qtyOf = (v) => {
   assert(Number.isFinite(q) && q > 0, 'La cantidad debe ser mayor que cero.', 'qty');
   return Math.round(q * 1000) / 1000;
 };
-/** El medio de pago puede ser una cuenta del libro (acc_…) o un método. */
-const payVia = (s, method) => {
-  const acc = s.ledger?.accounts?.find((a) => a.id === method);
-  if (acc) return { method: PH_METHODS[acc.method] ? acc.method : 'otro', accountId: acc.id };
-  return { method: PH_METHODS[method] ? method : 'otro', accountId: null };
-};
-/** Tarifa de IVA válida en Colombia para estos productos: 0, 5 o 19 %. */
-export const IVA_RATES = [0, 5, 19];
-export const ivaOf = (v) => {
-  const n = Number(String(v ?? 0).replace('%', '').replace(',', '.'));
-  assert(IVA_RATES.includes(n), 'El IVA debe ser 0, 5 o 19 %.', 'iva');
-  return n;
-};
 const dateOf = (d) => {
   const v = d || localDate();
   assert(isValidDate(v), 'La fecha no es válida.', 'date');
@@ -85,13 +70,6 @@ export function updatePhProfile(s, patch, ctx) {
     assert(patch.logo === null || (typeof patch.logo.dataUrl === 'string' && patch.logo.dataUrl.startsWith('data:image/jpeg') && patch.logo.dataUrl.length < 400000), 'El logo no es válido o es muy pesado.', 'logo');
     p.logo = patch.logo;
   }
-  if (patch.ivaResponsable !== undefined) {
-    const on = patch.ivaResponsable === true || patch.ivaResponsable === 'on' || patch.ivaResponsable === 'true';
-    if (on && !p.ivaResponsable && (!patch.taxNote || p.taxNote === 'No se cobra IVA en este documento.')) p.taxNote = 'Los precios incluyen IVA.';
-    if (!on && p.ivaResponsable && p.taxNote === 'Los precios incluyen IVA.') p.taxNote = 'No se cobra IVA en este documento.';
-    p.ivaResponsable = on;
-  }
-  if (patch.ivaPeriod !== undefined) p.ivaPeriod = patch.ivaPeriod === 'bimestral' ? 'bimestral' : 'cuatrimestral';
   if (patch.minMarginPct !== undefined) {
     const m = Number(patch.minMarginPct);
     assert(Number.isFinite(m) && m >= 0 && m < 100, 'El margen mínimo debe estar entre 0 y 99 %.', 'margin');
@@ -101,15 +79,9 @@ export function updatePhProfile(s, patch, ctx) {
 }
 
 /* ---------------- Productos ---------------- */
-/** Margen sobre el precio sin IVA (si el precio lo incluye: ivaPct > 0). */
-export function productMargin(p, price = p.price, cost = p.cost, ivaPct = 0) {
+export function productMargin(p, price = p.price, cost = p.cost) {
   if (!Number.isSafeInteger(cost) || !price) return { profit: null, pct: null };
-  const net = ivaPct ? Math.round((price * 100) / (100 + ivaPct)) : price;
-  return { profit: net - cost, pct: Math.round(((net - cost) / net) * 1000) / 10 };
-}
-/** IVA incluido en el precio de venta de un producto (0 si Alegría no cobra IVA). */
-export function saleIvaOf(st, p) {
-  return st.profile?.ivaResponsable ? Number(p?.ivaPct ?? 19) : 0;
+  return { profit: price - cost, pct: Math.round(((price - cost) / price) * 1000) / 10 };
 }
 
 export function savePhProduct(s, input, ctx) {
@@ -125,7 +97,6 @@ export function savePhProduct(s, input, ctx) {
     supplierId: input.supplierId || null,
     variants: Array.isArray(input.variants) ? input.variants.map((v) => cleanText(v, 40)).filter(Boolean) : String(input.variants || '').split(',').map((v) => cleanText(v, 40)).filter(Boolean),
     note: cleanText(input.note, 300),
-    ivaPct: ivaOf(input.ivaPct ?? 19),
     active: input.active !== false,
   };
   if (data.supplierId) getOrFail(st.suppliers, data.supplierId, 'el proveedor');
@@ -161,8 +132,8 @@ export function loadPetHomeCatalog(s, _input, ctx) {
   const st = ph(s);
   let added = 0;
   for (const [shopifyId, name, category, pet, price, variants] of PETHOME_CATALOG) {
-    if (st.products.some((p) => p.shopifyId === shopifyId || (p.handle && p.handle === PETHOME_HANDLES[shopifyId]) || fold(p.name) === fold(name))) continue;
-    st.products.push({ id: newId('php'), shopifyId, handle: PETHOME_HANDLES[shopifyId] || null, name, category, pet, price, cost: null, ivaPct: 19, supplierId: null, variants: variants || [], note: '', active: true, costHistory: [], createdAt: nowOf(ctx), updatedAt: nowOf(ctx) });
+    if (st.products.some((p) => p.shopifyId === shopifyId || fold(p.name) === fold(name))) continue;
+    st.products.push({ id: newId('php'), shopifyId, name, category, pet, price, cost: null, supplierId: null, variants: variants || [], note: '', active: true, costHistory: [], createdAt: nowOf(ctx), updatedAt: nowOf(ctx) });
     added++;
   }
   const legacy = importLegacyPetHome(s, ctx);
@@ -261,7 +232,7 @@ function buildLines(st, lines, { costKey = 'unitCost' } = {}) {
     const prod = l.productId ? st.products.find((p) => p.id === l.productId) : null;
     const description = cleanText(l.description || prod?.name, 160);
     assert(description, 'Cada línea necesita un producto o concepto.', 'lines');
-    const out = { id: newId('phl'), productId: prod?.id || null, description, qty: qtyOf(l.qty ?? 1), ivaPct: ivaOf(l.ivaPct ?? 0) };
+    const out = { id: newId('phl'), productId: prod?.id || null, description, qty: qtyOf(l.qty ?? 1) };
     if (costKey === 'unitCost' && 'unitPrice' in l) out.unitPrice = peso(l.unitPrice ?? prod?.price ?? 0, 'El precio');
     const c = l[costKey] ?? (costKey === 'unitCost' ? prod?.cost : null);
     out[costKey] = c === null || c === undefined || c === '' ? null : peso(c, 'El costo');
@@ -269,30 +240,14 @@ function buildLines(st, lines, { costKey = 'unitCost' } = {}) {
   });
 }
 
-/**
- * Totales de una venta. El precio de cada línea es el precio al público (con
- * IVA incluido si la línea tiene IVA). El descuento se reparte entre las
- * líneas para calcular el IVA. Ventas viejas sin IVA quedan igual.
- */
 export function saleTotals(sale) {
-  const gross = sale.lines.map((l) => Math.round(l.unitPrice * l.qty));
-  const subtotal = gross.reduce((a, v) => a + v, 0);
-  const discount = sale.discount || 0;
-  let iva = 0;
-  sale.lines.forEach((l, i) => {
-    const p = Number(l.ivaPct) || 0;
-    if (!p || !subtotal) return;
-    const after = gross[i] - Math.round((discount * gross[i]) / subtotal);
-    iva += Math.round((after * p) / (100 + p));
-  });
-  const total = subtotal - discount + (sale.shipping || 0);
+  const subtotal = sale.lines.reduce((a, l) => a + Math.round(l.unitPrice * l.qty), 0);
+  const total = subtotal - (sale.discount || 0) + (sale.shipping || 0);
   const knownCost = sale.lines.every((l) => Number.isSafeInteger(l.unitCost));
   const cogs = sale.lines.reduce((a, l) => a + (Number.isSafeInteger(l.unitCost) ? Math.round(l.unitCost * l.qty) : 0), 0);
   const paid = (sale.payments || []).filter((p) => p.status !== 'anulado').reduce((a, p) => a + p.amount, 0);
-  const net = subtotal - discount - iva; // ventas de productos sin IVA
-  const profit = net - cogs + (sale.shipping || 0) - (sale.shippingCost || 0);
-  const base = net + (sale.shipping || 0);
-  return { subtotal, total, iva, net, cogs, knownCost, profit, marginPct: base > 0 ? Math.round((profit / base) * 1000) / 10 : null, paid, balance: Math.max(0, total - paid) };
+  const profit = subtotal - (sale.discount || 0) - cogs + (sale.shipping || 0) - (sale.shippingCost || 0);
+  return { subtotal, total, cogs, knownCost, profit, marginPct: subtotal - (sale.discount || 0) > 0 ? Math.round((profit / (subtotal - (sale.discount || 0) + (sale.shipping || 0))) * 1000) / 10 : null, paid, balance: Math.max(0, total - paid) };
 }
 
 function nextPh(st, key, prefix) {
@@ -320,7 +275,7 @@ export function createPhSale(s, input, ctx) {
     customerPhone: cleanText(input.customerPhone, 40),
     customerId: cleanText(input.customerId, 40), // cédula/NIT del comprador (opcional)
     channel: PH_CHANNELS[input.channel] ? input.channel : 'directa',
-    lines: buildLines(st, input.lines.map((l) => ({ ...l, unitPrice: l.unitPrice ?? undefined, ivaPct: st.profile.ivaResponsable ? (l.ivaPct ?? st.products.find((p) => p.id === l.productId)?.ivaPct ?? 19) : 0 }))),
+    lines: buildLines(st, input.lines.map((l) => ({ ...l, unitPrice: l.unitPrice ?? undefined }))),
     discount: peso(input.discount || 0, 'El descuento'),
     shipping: peso(input.shipping || 0, 'El domicilio cobrado'),
     shippingCost: peso(input.shippingCost || 0, 'El domicilio pagado'),
@@ -353,7 +308,7 @@ export function addPhPayment(s, { saleId, amount, date, method = 'transferencia'
   assert(a > 0, 'El abono debe ser mayor que cero.', 'amount');
   const { balance } = saleTotals(sale);
   assert(a <= balance, `El abono supera lo que se debe (${balance}).`, 'amount');
-  const p = { id: newId('php_pay'), number: nextPh(st, 'receipt', 'RC'), date: dateOf(date), amount: a, ...payVia(s, method), note: cleanText(note, 300), status: 'activo', createdAt: nowOf(ctx) };
+  const p = { id: newId('php_pay'), number: nextPh(st, 'receipt', 'RC'), date: dateOf(date), amount: a, method: PH_METHODS[method] ? method : 'otro', note: cleanText(note, 300), status: 'activo', createdAt: nowOf(ctx) };
   sale.payments.push(p);
   audit(s, ctx, 'abono', 'venta_ph', sale.id, `${p.number} · ${a}`);
   return p;
@@ -382,23 +337,11 @@ export function voidPhSale(s, { saleId, reason }, ctx) {
 }
 
 /* ---------------- Compras a proveedores ---------------- */
-/** Totales de una compra: costo antes de IVA − descuento + IVA + flete. */
 export function purchaseTotals(pu) {
-  const gross = pu.lines.map((l) => Math.round(l.unitCost * l.qty));
-  const subtotal = gross.reduce((a, v) => a + v, 0);
-  const discount = pu.discount || 0;
-  let iva = 0;
-  const ivaByRate = {};
-  pu.lines.forEach((l, i) => {
-    const p = Number(l.ivaPct) || 0;
-    if (!p || !subtotal) return;
-    const v = Math.round(((gross[i] - Math.round((discount * gross[i]) / subtotal)) * p) / 100);
-    iva += v;
-    ivaByRate[p] = (ivaByRate[p] || 0) + v;
-  });
-  const total = subtotal - discount + iva + (pu.shipping || 0);
+  const subtotal = pu.lines.reduce((a, l) => a + Math.round(l.unitCost * l.qty), 0);
+  const total = subtotal - (pu.discount || 0) + (pu.shipping || 0);
   const paid = (pu.payments || []).filter((p) => p.status !== 'anulado').reduce((a, p) => a + p.amount, 0);
-  return { subtotal, iva, ivaByRate, total, paid, balance: Math.max(0, total - paid) };
+  return { subtotal, total, paid, balance: Math.max(0, total - paid) };
 }
 
 /**
@@ -413,7 +356,7 @@ export function createPurchase(s, input, ctx) {
     if (dup) return dup;
   }
   const supplier = getOrFail(st.suppliers, input.supplierId, 'el proveedor');
-  const lines = buildLines(st, input.lines.map((l) => ({ ...l, unitCost: l.unitCost ?? 0, ivaPct: l.ivaPct ?? 0 })), { costKey: 'unitCost' });
+  const lines = buildLines(st, input.lines.map((l) => ({ ...l, unitCost: l.unitCost ?? 0 })), { costKey: 'unitCost' });
   for (const l of lines) assert(Number.isSafeInteger(l.unitCost), 'Cada línea necesita su costo.', 'cost');
   const pu = { id: newId('phc'), number: '', supplierId: supplier.id, date: dateOf(input.date), lines, discount: peso(input.discount || 0, 'El descuento'), shipping: peso(input.shipping || 0, 'El flete'), dueDate: input.dueDate && isValidDate(input.dueDate) ? input.dueDate : null, invoiceRef: cleanText(input.invoiceRef, 60), notes: cleanText(input.notes, 1000), payments: [], status: 'activa', requestId: input.requestId || null, createdAt: nowOf(ctx) };
   const t = purchaseTotals(pu);
@@ -421,15 +364,11 @@ export function createPurchase(s, input, ctx) {
   pu.number = nextPh(st, 'purchase', 'CP');
   st.purchases.push(pu);
   if (input.updateCosts) {
-    // Costo puesto: con descuento y flete repartidos. Si Alegría no es
-    // responsable de IVA, el IVA que cobra el proveedor también es costo.
     const factor = t.subtotal ? (t.subtotal - pu.discount + pu.shipping) / t.subtotal : 1;
-    const discF = t.subtotal ? (t.subtotal - pu.discount) / t.subtotal : 1;
-    const ivaIsCost = !st.profile.ivaResponsable;
     for (const l of lines) {
       const p = l.productId && st.products.find((x) => x.id === l.productId);
       if (!p) continue;
-      const landed = Math.round(l.unitCost * factor + (ivaIsCost ? (l.unitCost * discF * (l.ivaPct || 0)) / 100 : 0));
+      const landed = Math.round(l.unitCost * factor);
       p.costHistory = [...(p.costHistory || []), { at: nowOf(ctx), from: p.cost, to: landed, source: pu.number }].slice(-20);
       p.cost = landed;
       if (!p.supplierId) p.supplierId = supplier.id;
@@ -444,38 +383,15 @@ export function createPurchase(s, input, ctx) {
   return pu;
 }
 
-export function addPurchasePayment(s, { purchaseId, amount, date, method = 'transferencia', note = '', reference = '' }, ctx) {
+export function addPurchasePayment(s, { purchaseId, amount, date, method = 'transferencia', note = '' }, ctx) {
   const pu = getOrFail(ph(s).purchases, purchaseId, 'la compra');
   assert(pu.status === 'activa', 'La compra está anulada.', 'status');
   const a = peso(amount, 'El pago');
   assert(a > 0 && a <= purchaseTotals(pu).balance, 'El pago debe ser mayor que cero y no superar el saldo.', 'amount');
-  const p = { id: newId('phcp'), date: dateOf(date), amount: a, ...payVia(s, method), note: cleanText(note, 300), reference: cleanText(reference, 80), status: 'activo', by: ctx?.user || null, createdAt: nowOf(ctx) };
+  const p = { id: newId('phcp'), date: dateOf(date), amount: a, method: PH_METHODS[method] ? method : 'otro', note: cleanText(note, 300), status: 'activo', createdAt: nowOf(ctx) };
   pu.payments.push(p);
   audit(s, ctx, 'pago', 'compra_ph', pu.id, `${a}`);
   return p;
-}
-
-/** Anula un abono a una compra (queda con su motivo; el saldo vuelve a quedar pendiente). */
-export function voidPurchasePayment(s, { purchaseId, paymentId, reason }, ctx) {
-  const pu = getOrFail(ph(s).purchases, purchaseId, 'la compra');
-  const p = getOrFail(pu.payments, paymentId, 'el pago');
-  assert(p.status === 'activo', 'Ese pago ya fue anulado.', 'status');
-  assert(cleanText(reason), 'Indica el motivo.', 'reason');
-  p.status = 'anulado';
-  p.voided = { at: nowOf(ctx), by: ctx?.user || null, reason: cleanText(reason, 300) };
-  audit(s, ctx, 'anular', 'pago_compra_ph', p.id, cleanText(reason));
-  return p;
-}
-
-/** Cambia la fecha en que hay que pagarle al proveedor (p. ej. si se acordó más plazo). */
-export function setPurchaseDueDate(s, { purchaseId, dueDate, note = '' }, ctx) {
-  const pu = getOrFail(ph(s).purchases, purchaseId, 'la compra');
-  assert(pu.status === 'activa', 'La compra está anulada.', 'status');
-  assert(!dueDate || isValidDate(dueDate), 'La fecha no es válida.', 'date');
-  pu.dueHistory = [...(pu.dueHistory || []), { at: nowOf(ctx), by: ctx?.user || null, from: pu.dueDate || null, to: dueDate || null, note: cleanText(note, 200) }].slice(-20);
-  pu.dueDate = dueDate || null;
-  audit(s, ctx, 'plazo', 'compra_ph', pu.id, `${dueDate || 'sin fecha'}`);
-  return pu;
 }
 
 export function voidPurchase(s, { purchaseId, reason }, ctx) {
@@ -538,7 +454,7 @@ export function phMonthSummary(s, period = localDate().slice(0, 7)) {
     payable: payables.reduce((a, r) => a + r.t.balance, 0),
     payables,
     purchased: purchases.reduce((a, x) => a + purchaseTotals(x).total, 0),
-    lowMargin: st.products.filter((p) => p.active && Number.isSafeInteger(p.cost) && productMargin(p, p.price, p.cost, saleIvaOf(st, p)).pct < st.settings.minMarginPct),
+    lowMargin: st.products.filter((p) => p.active && Number.isSafeInteger(p.cost) && productMargin(p).pct < st.settings.minMarginPct),
     noCost: st.products.filter((p) => p.active && !Number.isSafeInteger(p.cost)).length,
   };
 }
@@ -663,75 +579,4 @@ function millionsWords(m) {
   const th = Math.floor(m / 1000);
   const u = m % 1000;
   return [th ? (th === 1 ? 'mil' : `${under1000(th)} mil`) : '', under1000(u)].filter(Boolean).join(' ');
-}
-
-/* ---------------- Productos desde Shopify (exportación CSV de productos) ---------------- */
-const niceName = (s) => {
-  const v = cleanText(s, 120);
-  return v === v.toUpperCase() ? v.charAt(0) + v.slice(1).toLowerCase() : v;
-};
-
-/** Lee el CSV de "Productos → Exportar" de Shopify: un producto por "Handle" (las variantes van en filas extra). */
-export function parseShopifyProducts(text) {
-  const rows = parseCSV(text);
-  if (rows.length < 2) return [];
-  const header = rows[0].map((h) => String(h).trim().toLowerCase());
-  assert(header.includes('handle') && header.includes('title') && header.includes('variant price'), 'Ese archivo no parece la exportación de productos de Shopify (faltan "Handle", "Title" o "Variant Price").', 'format');
-  const out = new Map();
-  for (const row of rows.slice(1)) {
-    const handle = pick(row, header, 'Handle');
-    if (!handle) continue;
-    let p = out.get(handle);
-    if (!p) {
-      p = { handle, title: '', type: '', tags: '', status: '', price: null, cost: null, variants: [] };
-      out.set(handle, p);
-    }
-    p.title ||= pick(row, header, 'Title');
-    p.type ||= pick(row, header, 'Type') || pick(row, header, 'Product Category').split('>').pop().trim();
-    p.tags ||= pick(row, header, 'Tags');
-    p.status ||= pick(row, header, 'Status').toLowerCase();
-    const price = shopMoney(pick(row, header, 'Variant Price'));
-    if (price > 0 && (p.price === null || price < p.price)) p.price = price;
-    const cost = shopMoney(pick(row, header, 'Cost per item'));
-    if (cost > 0 && p.cost === null) p.cost = cost;
-    const v = pick(row, header, 'Option1 Value');
-    if (v && v !== 'Default Title' && !p.variants.includes(v)) p.variants.push(v);
-  }
-  return [...out.values()].filter((p) => p.title && p.price !== null);
-}
-
-/**
- * Agrega los productos nuevos de la tienda y, si se pide, actualiza el precio
- * de los que ya están. Reconoce cada producto por su "handle" de Shopify o
- * por el nombre. Nunca borra productos ni toca los costos ya escritos.
- */
-export function importShopifyProducts(s, { text, updatePrices = true }, ctx) {
-  const st = ph(s);
-  const items = parseShopifyProducts(text);
-  assert(items.length, 'El archivo no trae productos.', 'empty');
-  const handleOf = (p) => p.handle || (p.shopifyId ? PETHOME_HANDLES[p.shopifyId] : null);
-  const res = { added: [], priced: [], same: 0, archived: 0 };
-  for (const it of items) {
-    if (it.status && it.status !== 'active') {
-      res.archived++;
-      continue;
-    }
-    const pet = /gato/i.test(it.tags) && /perro/i.test(it.tags) ? 'perros y gatos' : /gato/i.test(it.tags) ? 'gatos' : 'perros';
-    const found = st.products.find((p) => handleOf(p) === it.handle) || st.products.find((p) => fold(p.name) === fold(it.title));
-    if (found) {
-      if (!found.handle) found.handle = it.handle;
-      if (updatePrices && found.price !== it.price) {
-        res.priced.push(`${found.name}: ${found.price} → ${it.price}`);
-        found.price = it.price;
-        found.updatedAt = nowOf(ctx);
-      } else res.same++;
-      if (!Number.isSafeInteger(found.cost) && Number.isSafeInteger(it.cost)) found.cost = it.cost;
-      continue;
-    }
-    st.products.push({ id: newId('php'), shopifyId: null, handle: it.handle, name: niceName(it.title), category: cleanText(it.type, 60) || 'Sin categoría', pet, price: it.price, cost: Number.isSafeInteger(it.cost) ? it.cost : null, ivaPct: 19, supplierId: null, variants: it.variants, note: '', active: true, costHistory: [], createdAt: nowOf(ctx), updatedAt: nowOf(ctx) });
-    res.added.push(niceName(it.title));
-  }
-  st.catalogLoadedAt = nowOf(ctx);
-  audit(s, ctx, 'catalogo_csv', 'pethome', 'shopify', `${res.added.length} nuevos, ${res.priced.length} precios`);
-  return res;
 }
