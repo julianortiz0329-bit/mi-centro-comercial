@@ -1133,3 +1133,6 @@ body[data-mode="pethome"] .hero .deco-nogal { opacity: 0; }
 .ale-card.ale-off small { color: var(--fg-muted); }
 .mono-input { flex: 1 1 220px; min-height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 12px; font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
 body.discreet .ale-card b { filter: blur(7px); }
+.th-wait { display: grid; gap: 2px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 14px; background: var(--gold-soft, #f2ead9); border: 1px dashed color-mix(in srgb, var(--gold) 55%, transparent); }
+.th-wait b { font-family: var(--font-display); font-size: 22px; }
+.th-wait small { color: var(--fg-muted); }

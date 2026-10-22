@@ -3,7 +3,15 @@
 // no sobrescribir en silencio cambios hechos en otra pestaña.
 import { localDate } from '../core/dates.js';
 import { migrateV1, V1_KEY } from '../domain/migrate.js';
-import { emptyState, normalizeState } from '../domain/schema.js';
+import { emptyState, normalizeState as normalizeBase } from '../domain/schema.js';
+import { upgradeThresholdPolicy } from '../domain/commissions.js';
+
+/** Completa campos y aplica cambios de reglas pendientes (una sola vez). */
+function normalizeState(s) {
+  const out = normalizeBase(s);
+  upgradeThresholdPolicy(out, { now: new Date().toISOString(), user: 'app' });
+  return out;
+}
 
 const DB_NAME = 'mi-centro-comercial';
 const STORE = 'kv';

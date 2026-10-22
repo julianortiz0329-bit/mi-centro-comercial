@@ -5,7 +5,7 @@
 import { emptyPetHome } from './pethome.js';
 
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '3.3.0';
+export const APP_VERSION = '3.4.0';
 
 /** Reglas comerciales vigentes. Cada comisión guarda una copia de las reglas
  *  aplicadas (rulesSnapshot), así un cambio futuro no altera el historial. */
@@ -20,7 +20,7 @@ export const DEFAULT_RULES = {
     kind: 'umbral',
     thresholdPesos: 70_000_000,
     thresholdBase: 'neto_antes_iva', // ventas antes de IVA, después de descuentos
-    crossingRule: 'excedente', // la venta del cruce comisiona solo lo que supera el umbral
+    crossingRule: 'todo_el_mes', // al llegar al umbral comisiona todo lo del mes (todo o nada)
     collectionBase: 'proporcional_antes_iva', // recaudo × (neto / total)
     modes: {
       mayorista: { label: 'Mayorista', saleBps: 40, collectionBps: 40 },
@@ -114,10 +114,10 @@ export function defaultSettings() {
     creditLimitBlocks: { puntazo: false, nogal: false },
     waTemplates: structuredClone(DEFAULT_WA_TEMPLATES),
     goals: { puntazo: { sales: 0, collection: 0, byPeriod: {} }, nogal: { sales: 0, collection: 0, byPeriod: {} } },
-    // Política confirmada por el usuario el 2026-10-13 (umbral antes de IVA,
-    // excedente de la venta del cruce, cobro solo de ventas elegibles y sujeto
-    // al umbral del mes del recaudo, base antes de IVA).
-    policy: { nogal: { confirmed: true, confirmedAt: '2026-10-13T12:00:00.000Z', by: 'usuario' } },
+    // Política confirmada por el usuario el 2026-10-22: umbral de $70 M antes
+    // de IVA, "todo o nada" por mes (al llegar se paga todo desde el primer
+    // peso), el cobro sigue al mes de la venta, base antes de IVA.
+    policy: { nogal: { confirmed: true, confirmedAt: '2026-10-22T12:00:00.000Z', by: 'usuario' } },
     agendaDone: {},
     // Datos de cada empresa para cotizaciones e informes en PDF.
     companyProfiles: {
@@ -133,7 +133,7 @@ export function emptyState() {
   return {
     schema: SCHEMA_VERSION,
     rev: 0,
-    meta: { createdAt: new Date().toISOString(), migratedFrom: null, migratedAt: null, migrationReport: null },
+    meta: { createdAt: new Date().toISOString(), migratedFrom: null, migratedAt: null, migrationReport: null, commissionPolicy: 'todo-o-nada' },
     companies: structuredClone(COMPANIES),
     rules: structuredClone(DEFAULT_RULES),
     settings: defaultSettings(),

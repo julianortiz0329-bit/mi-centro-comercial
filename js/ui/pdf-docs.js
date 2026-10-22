@@ -256,7 +256,7 @@ export function commissionReportPdf(s, companyId, period) {
     money(c.base),
     formatPct(c.rateBps),
     money(c.amount),
-    { text: COMMISSION_STATUSES[c.status], sub: c.status === 'bloqueada' ? 'informativa' : '' },
+    { text: c.pendingThreshold && c.status === 'bloqueada' ? 'En espera' : COMMISSION_STATUSES[c.status], sub: c.status === 'bloqueada' ? (c.pendingThreshold ? 'se paga si llega a $70 M' : 'informativa') : '' },
   ]);
   y = rows.length ? table(pdf, y, cols, rows) : (pdf.text('Sin movimientos en el periodo.', M, y + 12, { size: 9, color: MUTED }), y + 24);
   const sts = s.settlements.filter((x) => x.companyId === companyId && periodOf(x.createdAt) === period);
@@ -266,7 +266,7 @@ export function commissionReportPdf(s, companyId, period) {
     y = table(pdf, y + 14, [{ label: 'N.º', w: 100 }, { label: 'Fecha', w: 100 }, { label: 'Líneas', w: 60, align: 'right' }, { label: 'Total', w: 120, align: 'right', bold: true }, { label: 'Estado', w: 135 }], sts.map((x) => [x.number, formatDate(x.createdAt), String(x.commissionIds.length), money(x.total), x.status === 'pagada' ? `Pagada ${formatDate(x.paidAt)}` : x.status === 'anulada' ? 'Anulada' : 'Liquidada · por pagar']));
   }
   y = ensure(pdf, y, 30);
-  for (const t of wrapText(companyId === 'nogal' ? 'Política: comisiona lo vendido desde que el mes supera $70 M antes de IVA (de la venta que cruza, solo el excedente). Cobros solo de ventas elegibles y en meses que superan el umbral. Base antes de IVA. Mayorista 0,4 % / Normal 0,75 %.' : 'Política: 0 % por venta; 6 % sobre lo efectivamente recaudado.', W - 2 * M, 8)) {
+  for (const t of wrapText(companyId === 'nogal' ? 'Política: todo o nada por mes. Si el mes llega a $70 M antes de IVA, comisiona todo lo vendido en el mes desde el primer peso; si no llega, no se paga. El cobro sigue al mes de la venta.' : 'Política: 0 % por venta; 6 % sobre lo efectivamente recaudado.', W - 2 * M, 8)) {
     pdf.text(t, M, y + 8, { size: 8, color: MUTED });
     y += 10;
   }

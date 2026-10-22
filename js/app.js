@@ -366,7 +366,7 @@ const handlers = {
     openModal({ title: 'Cambiar estado del cliente', subtitle: 'Desactivar no borra el historial.', body: field({ name: 'status', label: 'Estado', type: 'select', value: c.status, options: Object.entries(CLIENT_STATUSES).map(([value, label]) => ({ value, label })) }) + field({ name: 'reason', label: 'Motivo (opcional)' }), onSubmit: async (fd) => ((await exec(setClientStatus, { id: c.id, status: fd.get('status'), reason: fd.get('reason') }, { success: 'Estado actualizado' })) ? undefined : false) });
   },
   async 'confirm-policy'(el) {
-    const ok = await confirmDialog({ title: 'Confirmar política de comisiones', message: 'Confirmo que la política mostrada (umbral de $70 M antes de IVA, la venta del cruce comisiona solo el excedente, sin retroactividad, cobro solo de ventas elegibles y sujeto al umbral del mes del recaudo, base antes de IVA) coincide con lo acordado con Frutos del Nogal.', confirmText: 'Confirmo' });
+    const ok = await confirmDialog({ title: 'Confirmar política de comisiones', message: 'Confirmo que la política mostrada (umbral de $70 M antes de IVA, todo o nada por mes: al llegar se paga toda la comisión del mes desde el primer peso; el cobro sigue al mes de la venta) coincide con lo acordado con Frutos del Nogal.', confirmText: 'Confirmo' });
     if (ok) await exec(confirmPolicy, { companyId: el.dataset.co }, { success: 'Política confirmada' });
   },
   async settle(el) {

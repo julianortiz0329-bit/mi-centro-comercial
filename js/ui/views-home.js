@@ -29,14 +29,14 @@ function projectionBlock(t) {
 export function thresholdCard(t, { compact = false } = {}) {
   if (!t) return '';
   return `<section class="panel threshold ${t.unlocked ? 'unlocked' : 'locked'}">
-    <div class="panel-head"><div><h2>🌰 Umbral mensual · Frutos del Nogal</h2><p class="muted">${periodLabel(t.period)} · base: ${t.thresholdBase === 'total' ? 'total con IVA' : 'ventas antes de IVA'}</p></div>${pill(t.unlocked ? 'Desbloqueado' : 'Bloqueado', t.unlocked ? 'ok' : 'warn')}</div>
+    <div class="panel-head"><div><h2>🌰 Umbral mensual · Frutos del Nogal</h2><p class="muted">${periodLabel(t.period)} · base: ${t.thresholdBase === 'total' ? 'total con IVA' : 'ventas antes de IVA'}</p></div>${pill(t.unlocked ? 'Desbloqueado' : 'Acumulando', t.unlocked ? 'ok' : 'warn')}</div>
     <div class="th-row"><div><small>Ventas acumuladas</small><b>${money(t.cumulative)}</b></div><div><small>Umbral</small><b>${money(t.threshold)}</b></div><div><small>Falta</small><b>${money(t.missing)}</b></div><div><small>Avance</small><b>${t.pct.toFixed(1)} %</b></div></div>
     ${progress(t.pct, t.unlocked ? 'ok' : '')}
-    ${t.unlocked ? `<p class="muted small">Desbloqueado el ${formatDateTime(t.unlock.unlockedAt)} con ${esc(t.unlock.triggerNumber)} (de esa venta solo comisiona lo que supera el umbral).</p>` : '<p class="muted small">Las comisiones del mes están bloqueadas hasta alcanzar el umbral. No se calculan comisiones retroactivas.</p>'}
+    ${t.unlocked ? `<p class="muted small">Desbloqueado el ${formatDateTime(t.unlock.unlockedAt)} con ${esc(t.unlock.triggerNumber)}: toda la comisión del mes, desde el primer peso, quedó lista para liquidar.</p>` : `<div class="th-wait"><small>Comisión acumulada en espera</small><b>${money(t.waiting || 0)}</b><small>Se desbloquea completa cuando el mes llegue a ${money(t.threshold)}. Si no llega, no se paga.</small></div>`}
     ${paceChart(t)}
     ${projectionBlock(t)}
     ${t.belowAfterVoids ? '<div class="notice warn">Tras anulaciones el acumulado quedó por debajo del umbral. El desbloqueo registrado se mantiene; revisa antes de liquidar.</div>' : ''}
-    ${compact ? '' : `<div class="th-row"><div><small>Ventas elegibles</small><b>${money(t.eligibleSalesNet)}</b><small>${t.eligibleSalesCount} venta(s)</small></div><div><small>Comisión por venta</small><b>${money(t.saleCommission)}</b></div><div><small>Comisión por cobro</small><b>${money(t.collectionCommission)}</b></div><div><small>Bloqueadas (informativo)</small><b>${money(t.blocked)}</b></div></div>
+    ${compact ? '' : `<div class="th-row"><div><small>Ventas elegibles</small><b>${money(t.eligibleSalesNet)}</b><small>${t.eligibleSalesCount} venta(s)</small></div><div><small>Comisión por venta</small><b>${money(t.saleCommission)}</b></div><div><small>Comisión por cobro</small><b>${money(t.collectionCommission)}</b></div><div><small>En espera / no pagables</small><b>${money(t.blocked)}</b></div></div>
     <div class="th-row"><div><small>Pendientes</small><b>${money(t.pending)}</b></div><div><small>Liquidadas</small><b>${money(t.settled)}</b></div><div><small>Pagadas</small><b>${money(t.paid)}</b></div><div><small>Reversadas</small><b>${money(t.reversed)}</b></div></div>
     <p class="muted small">Por modalidad: mayorista ${money(t.byMode.mayorista || 0)} · normal ${money(t.byMode.normal || 0)}</p>`}
   </section>`;

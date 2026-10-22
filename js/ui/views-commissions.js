@@ -31,11 +31,10 @@ export function renderCommissions(params) {
     ? `<p>Comisión por venta: <b>${formatPct(rules.saleBps)}</b> · Comisión por cobro: <b>${formatPct(rules.collectionBps)}</b> del valor efectivamente recaudado, sin importar la fecha de la venta. Los abonos parciales comisionan en proporción al dinero recibido.</p>`
     : `<p>Umbral mensual: <b>${money(rules.thresholdPesos)}</b> en ventas ${rules.thresholdBase === 'total' ? 'con IVA' : 'antes de IVA'}. Mayorista: <b>${formatPct(rules.modes.mayorista.saleBps)}</b> venta / <b>${formatPct(rules.modes.mayorista.collectionBps)}</b> cobro. Normal: <b>${formatPct(rules.modes.normal.saleBps)}</b> venta / <b>${formatPct(rules.modes.normal.collectionBps)}</b> cobro. Base: valor antes de IVA después de descuentos; en los cobros, recaudo × (antes de IVA ÷ total).</p>
       <details><summary>Política de elegibilidad aplicada</summary><ol class="policy">
-        <li>Los primeros $70 M antes de IVA del mes no comisionan; desde ahí, todo lo que se vende sí.</li>
-        <li>La venta que cruza el umbral comisiona solo el excedente (p. ej. de $69 M a $71 M → comisiona $1 M).</li>
-        <li>El desbloqueo queda registrado con fecha y hora; no hay comisión retroactiva sobre lo vendido antes.</li>
-        <li>Un cobro comisiona solo si la venta fue elegible (en la venta del cruce, solo su parte excedente) <b>y</b> el mes del recaudo también llegó a $70 M.</li>
-        <li>Lo no elegible queda como "bloqueada" con su motivo (informativo, nunca se liquida).</li>
+        <li>Mientras el mes no llega a $70 M antes de IVA, la comisión de cada venta y cobro se va acumulando <b>en espera</b>.</li>
+        <li>Al llegar a $70 M se desbloquea <b>toda</b> la comisión del mes, desde el primer peso, y lo que vendas después comisiona de una vez.</li>
+        <li>Si el mes termina sin llegar a $70 M, esa comisión no se paga.</li>
+        <li>El cobro sigue al mes de la venta: si ese mes llegó a $70 M, el cobro comisiona aunque te paguen después.</li>
         <li>Cada mes inicia un nuevo periodo; el historial anterior no cambia.</li>
       </ol></details>
       <div class="notice ${policy?.confirmed ? 'info' : 'warn'}">${policy?.confirmed ? `Política confirmada el ${formatDateTime(policy.confirmedAt)}. Ya puedes liquidar.` : 'Antes de liquidar comisiones definitivas, confirma que esta política coincide con lo acordado con Frutos del Nogal.'} ${policy?.confirmed ? '' : '<button class="btn btn-primary btn-small" data-act="confirm-policy" data-co="nogal">Confirmar política</button>'}</div>`;
@@ -51,7 +50,7 @@ export function renderCommissions(params) {
       <button class="btn btn-plain btn-small" data-act="export" data-what="comisiones" data-co="${co}">Exportar CSV</button>
       ${period !== 'todos' ? `<button class="btn btn-primary btn-small" data-act="commission-pdf" data-co="${co}" data-period="${period}">📄 Informe PDF del mes</button>` : ''}</div>
     ${lines.length ? `<div class="table-wrap"><table class="comm"><thead><tr><th><input type="checkbox" data-check-all aria-label="Seleccionar pendientes"></th><th>Fecha op.</th><th>Tipo</th><th>Documento</th><th>Cliente</th><th>Modalidad</th><th>Base</th><th>%</th><th>Comisión</th><th>Estado</th></tr></thead><tbody>
-    ${lines.slice(0, 500).map((c) => `<tr class="${c.status}"><td>${c.status === 'generada' ? `<input type="checkbox" data-comm="${c.id}" aria-label="Seleccionar">` : ''}</td><td>${formatDate(c.operationAt)}</td><td>${typeLabel[c.type]}</td><td><a href="#/doc/${c.documentId}">${esc(docNum(c.documentId))}</a></td><td>${esc(client(c.clientId))}</td><td>${c.mode ? esc(c.mode) : '—'}</td><td>${money(c.base)}</td><td>${formatPct(c.rateBps)}</td><td><button type="button" class="why" data-act="why-comm" data-id="${c.id}" title="¿Cómo se calculó?"><b>${money(c.amount)}</b>${icon('info', { size: 14 })}</button></td><td>${pill(COMMISSION_STATUSES[c.status], { generada: 'info', liquidada: 'warn', pagada: 'ok', reversada: 'danger', bloqueada: '' }[c.status])}${c.blockedReason ? `<small class="block">${esc(c.blockedReason)}</small>` : ''}${c.reversal ? `<small class="block">${esc(c.reversal.reason)}</small>` : ''}${c.adjustmentReason ? `<small class="block">${esc(c.adjustmentReason)}</small>` : ''}</td></tr>`).join('')}
+    ${lines.slice(0, 500).map((c) => `<tr class="${c.status}"><td>${c.status === 'generada' ? `<input type="checkbox" data-comm="${c.id}" aria-label="Seleccionar">` : ''}</td><td>${formatDate(c.operationAt)}</td><td>${typeLabel[c.type]}</td><td><a href="#/doc/${c.documentId}">${esc(docNum(c.documentId))}</a></td><td>${esc(client(c.clientId))}</td><td>${c.mode ? esc(c.mode) : '—'}</td><td>${money(c.base)}</td><td>${formatPct(c.rateBps)}</td><td><button type="button" class="why" data-act="why-comm" data-id="${c.id}" title="¿Cómo se calculó?"><b>${money(c.amount)}</b>${icon('info', { size: 14 })}</button></td><td>${pill(c.pendingThreshold && c.status === 'bloqueada' ? 'En espera' : COMMISSION_STATUSES[c.status], { generada: 'info', liquidada: 'warn', pagada: 'ok', reversada: 'danger', bloqueada: '' }[c.status])}${c.blockedReason ? `<small class="block">${esc(c.blockedReason)}</small>` : ''}${c.reversal ? `<small class="block">${esc(c.reversal.reason)}</small>` : ''}${c.adjustmentReason ? `<small class="block">${esc(c.adjustmentReason)}</small>` : ''}</td></tr>`).join('')}
     </tbody></table></div><p class="muted small">Toca el valor de una comisión para ver cómo se calculó.</p><p class="muted small" data-selected-sum></p>` : empty('💰', 'Sin movimientos con estos filtros', co === 'puntazo' ? 'Las comisiones de El Puntazo se generan al registrar cobros.' : 'Las comisiones de Frutos del Nogal se generan con ventas y cobros elegibles.', '<button class="btn btn-primary" data-act="pay">＋ Registrar un cobro</button>')}
   </section>
   <section class="panel"><h2>Liquidaciones</h2><p class="muted small">Liquidar agrupa comisiones pendientes para cobrarlas a la empresa. Solo cuando registres que te pagaron quedan como "pagadas".</p>
@@ -72,7 +71,7 @@ export function explainCommission(s, id) {
   if (c.type === 'venta') {
     steps.push(row(`Venta ${esc(doc?.number || '')} · ${esc(client)}`, ''));
     if (doc) steps.push(row('Valor antes de IVA (después de descuentos)', money(doc.totals.net)), row('IVA (no comisiona)', money(doc.totals.iva)));
-    if (doc && c.base !== doc.totals.net) steps.push(row(c.status === 'bloqueada' ? 'Parte que no comisiona' : 'Parte que comisiona (excedente sobre el umbral)', money(c.base)));
+    if (doc && c.base !== doc.totals.net) steps.push(row(c.status === 'bloqueada' ? 'Parte que no comisiona' : 'Parte que comisiona', money(c.base)));
     steps.push(row(`Tarifa${c.mode ? ` ${esc(c.mode)}` : ''}`, pct), row(`${money(c.base)} × ${pct}`, money(c.amount), true));
   } else if (c.type === 'cobro') {
     const pay = s.payments.find((p) => p.id === c.paymentId);
@@ -86,7 +85,7 @@ export function explainCommission(s, id) {
     steps.push(row('Tarifa de cobro', pct), row(`${money(c.base)} × ${pct}`, money(c.amount), true));
   } else steps.push(row('Ajuste', money(c.amount), true));
   const notes = [];
-  if (c.status === 'bloqueada') notes.push(`<div class="notice warn"><b>No se paga.</b> ${esc(c.blockedReason || '')}</div>`);
+  if (c.status === 'bloqueada') notes.push(c.pendingThreshold ? `<div class="notice info"><b>En espera.</b> ${esc(c.blockedReason || '')}</div>` : `<div class="notice warn"><b>No se paga.</b> ${esc(c.blockedReason || '')}</div>`);
   if (c.reversal) notes.push(`<div class="notice">Reversada: ${esc(c.reversal.reason)}</div>`);
   if (c.adjustmentReason) notes.push(`<div class="notice">${esc(c.adjustmentReason)}</div>`);
   if (c.type !== 'ajuste' && Math.abs(exact - c.amount) === 1) notes.push('<p class="muted small">Diferencia de $1 por redondeo: en abonos parciales el redondeo se hace sobre el acumulado de la venta, para que la suma de los abonos dé exacto.</p>');

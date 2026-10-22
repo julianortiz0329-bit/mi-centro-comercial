@@ -9,25 +9,23 @@
 //  · Cobro: 6 % de cada peso efectivamente aplicado a una venta, sin importar
 //    la fecha de la venta. Abonos parciales comisionan proporcionalmente.
 //
-// Frutos del Nogal (umbral mensual)
+// Frutos del Nogal (umbral mensual, "todo o nada")
 //  · El umbral se evalúa por periodo mensual de la FECHA DE LA VENTA, sumando
 //    las ventas vigentes (no anuladas) del periodo sobre la base configurada
 //    (por defecto: neto antes de IVA, después de descuentos).
-//  · El desbloqueo se registra una sola vez, en el instante en que se registra
-//    la venta que hace que el acumulado llegue al umbral. Queda guardado y no
-//    se mueve después (ni por ventas registradas con fecha anterior ni por
-//    anulaciones; si una anulación deja el acumulado por debajo, se avisa).
-//  · Comisión por venta: solo lo vendido DESPUÉS de llegar al umbral. La venta
-//    que produce el cruce comisiona únicamente el excedente sobre el umbral
-//    (de $69 M a $71 M → comisiona $1 M). No hay comisiones retroactivas.
-//  · Comisión por cobro: solo si (a) la venta original fue elegible y (b) el
-//    recaudo se aplica después del desbloqueo del periodo de la FECHA DEL
-//    RECAUDO. Base: recaudo × (base elegible antes de IVA / total), sin
-//    superar el saldo y sin duplicar pagos.
+//  · Mientras el mes no llega al umbral, la comisión de cada venta y de cada
+//    cobro se va ACUMULANDO "en espera" (bloqueada con pendingThreshold).
+//  · Cuando el acumulado del mes llega al umbral, se desbloquea TODA la
+//    comisión del mes desde el primer peso (no solo el excedente), y lo que se
+//    venda después en ese mes comisiona de una vez.
+//  · Si el mes termina sin llegar al umbral, esa comisión no se paga.
+//  · Comisión por cobro: sigue al mes de la VENTA cobrada. Base: recaudo ×
+//    (neto antes de IVA / total), sin superar el saldo y sin duplicar pagos.
+//  · El desbloqueo se registra una sola vez y no se mueve por anulaciones
+//    (si una anulación deja el acumulado por debajo, se avisa).
 //  · Tarifa según la modalidad guardada en la venta: mayorista 0,4 % / 0,4 %;
 //    normal 0,75 % / 0,75 %.
-//  · Las líneas no elegibles se guardan como "bloqueada" con el motivo, para
-//    que todo sea auditable; nunca suman a lo pendiente ni a lo pagado.
+//  · Las ventas migradas de la versión 1 no comisionan (sin evidencia).
 //
 // Correcciones: una línea pendiente se marca "reversada" (con motivo y fecha);
 // una línea ya liquidada o pagada no se toca: se crea un AJUSTE negativo.
@@ -77,7 +75,29 @@ function evaluateUnlock(s, companyId, period, triggerDoc, ctx) {
   };
   s.unlocks[key] = rec;
   audit(s, ctx, 'desbloqueo_umbral', 'periodo', key, `Acumulado ${cumulative} ≥ ${rules.thresholdPesos} con ${triggerDoc.number}`);
+  releasePeriod(s, companyId, period, ctx);
   return rec;
+}
+
+/** Al llegar al umbral, la comisión acumulada en espera del mes pasa a pendiente de liquidar. */
+function releasePeriod(s, companyId, period, ctx) {
+  const unlock = s.unlocks[unlockKey(companyId, period)];
+  let n = 0;
+  for (const c of s.commissions) {
+    if (c.companyId !== companyId || c.status !== 'bloqueada' || !c.pendingThreshold) continue;
+    if ((c.salePeriod || c.period) !== period) continue;
+    c.status = 'generada';
+    c.blockedReason = null;
+    c.pendingThreshold = false;
+    c.releasedAt = nowOf(ctx);
+    n++;
+  }
+  for (const d of s.documents) {
+    if (d.companyId === companyId && d.kind === 'venta' && !d.legacy && d.commission && periodOf(d.date) === period && !d.commission.saleEligible) {
+      Object.assign(d.commission, { saleEligible: true, eligibleBase: d.totals.net, unlockAt: unlock?.unlockedAt || nowOf(ctx), reason: `El mes llegó al umbral: toda la venta comisiona.` });
+    }
+  }
+  return n;
 }
 
 export function unlockFor(s, companyId, period) {
@@ -109,33 +129,20 @@ export function onSaleRegistered(s, doc, ctx) {
     }
     return;
   }
-  // Umbral mensual (Frutos del Nogal)
-  const unlock = evaluateUnlock(s, doc.companyId, period, doc, ctx);
-  const registeredAt = doc.createdAt;
-  const net = doc.totals.net;
-  let eligibleBase = 0;
-  let reason;
-  if (doc.legacy) reason = 'Venta migrada de la versión 1: sin evidencia de elegibilidad.';
-  else if (!unlock) reason = `Periodo ${period} bloqueado: el acumulado no alcanza el umbral.`;
-  else if (unlock.triggerDocumentId === doc.id) {
-    // Venta del cruce: comisiona SOLO lo que supera el umbral ("de los 70 en adelante").
-    const excess = Math.max(0, unlock.cumulativeAtUnlock - unlock.thresholdPesos);
-    eligibleBase = Math.min(net, rules.thresholdBase === 'total' ? mulDiv(excess, net, doc.totals.total) : excess);
-    reason = eligibleBase > 0 ? `Venta del cruce: comisiona solo el excedente sobre el umbral (${eligibleBase} de ${net} antes de IVA).` : 'La venta alcanzó exactamente el umbral: no hay excedente que comisione.';
-  } else if (registeredAt <= unlock.unlockedAt) reason = 'Registrada antes del desbloqueo del periodo (sin retroactividad).';
-  else {
-    eligibleBase = net;
-    reason = `Registrada después del desbloqueo (${unlock.unlockedAt}).`;
-  }
-  const eligible = eligibleBase > 0;
+  // Umbral mensual (Frutos del Nogal): todo o nada por mes.
   const mode = rules.modes[doc.saleMode];
   assert(mode, 'Modalidad comercial no configurada.', 'mode');
-  doc.commission = { saleEligible: eligible, eligibleBase, period, unlockAt: unlock?.unlockedAt || null, reason, evaluatedAt: nowOf(ctx) };
-  const line = (base, status, why) =>
-    pushLine(s, { companyId: doc.companyId, type: 'venta', documentId: doc.id, clientId: doc.clientId, paymentId: null, allocationId: null, operationAt: doc.occurredAt, period, mode: doc.saleMode, base, ivaTreatment: 'antes_iva', rateBps: mode.saleBps, amount: applyBps(base, mode.saleBps), status, blockedReason: why, rulesSnapshot: snapshotRules(s, doc.companyId) }, ctx);
-  if (eligible) line(eligibleBase, 'generada', null);
-  // La parte no elegible queda registrada como bloqueada (informativa).
-  if (net - eligibleBase > 0) line(net - eligibleBase, 'bloqueada', eligible ? 'Parte de la venta del cruce que completa el umbral (hasta $70 M): no comisiona.' : reason);
+  const net = doc.totals.net;
+  const waitReason = `Comisión acumulada en espera: se paga completa si ${period} llega a $${Math.round(rules.thresholdPesos / 1e6)} M.`;
+  const legacy = !!doc.legacy;
+  doc.commission = { saleEligible: false, eligibleBase: legacy ? 0 : net, period, unlockAt: null, reason: legacy ? 'Venta migrada de la versión 1: sin evidencia de elegibilidad.' : waitReason, evaluatedAt: nowOf(ctx) };
+  if (net > 0) {
+    pushLine(s, { companyId: doc.companyId, type: 'venta', documentId: doc.id, clientId: doc.clientId, paymentId: null, allocationId: null, operationAt: doc.occurredAt, period, salePeriod: period, mode: doc.saleMode, base: net, ivaTreatment: 'antes_iva', rateBps: mode.saleBps, amount: applyBps(net, mode.saleBps), status: 'bloqueada', pendingThreshold: !legacy, blockedReason: doc.commission.reason, rulesSnapshot: snapshotRules(s, doc.companyId) }, ctx);
+  }
+  if (legacy) return;
+  // Si el mes ya estaba desbloqueado, o esta venta lo desbloquea, todo lo del mes queda pendiente de liquidar.
+  if (unlockFor(s, doc.companyId, period)) releasePeriod(s, doc.companyId, period, ctx);
+  else evaluateUnlock(s, doc.companyId, period, doc, ctx);
 }
 
 /** Suma aplicada a la venta ANTES de esta asignación (para redondeo acumulado). */
@@ -183,19 +190,15 @@ export function onAllocation(s, payment, allocation, doc, ctx) {
     return;
   }
   const mode = rules.modes[doc.saleMode];
-  // Base del cobro: recaudo × (base elegible antes de IVA ÷ total de la venta).
-  const net = doc.commission?.saleEligible ? (doc.commission.eligibleBase ?? doc.totals.net) : doc.totals.net;
+  // Base del cobro: recaudo × (neto antes de IVA ÷ total de la venta).
+  const net = doc.totals.net;
   const total = doc.totals.total;
   const baseBefore = mulDiv(prior, net, total);
   const baseAfter = mulDiv(after, net, total);
-  const base = baseAfter - baseBefore;
-  const unlock = unlockFor(s, doc.companyId, period);
-  let eligible = false;
-  let reason;
-  if (!doc.commission?.saleEligible) reason = 'La venta original no fue elegible (antes de llegar a $70 M en su mes, o migrada).';
-  else if (!unlock) reason = `El periodo del recaudo (${period}) no ha alcanzado el umbral.`;
-  else if (allocation.at <= unlock.unlockedAt) reason = `Recaudo aplicado antes del desbloqueo del periodo ${period}.`;
-  else eligible = true;
+  const salePeriod = periodOf(doc.date);
+  const legacy = !!doc.legacy;
+  const unlocked = !legacy && !!unlockFor(s, doc.companyId, salePeriod);
+  const reason = legacy ? 'La venta fue migrada de la versión 1: no comisiona.' : `Comisión acumulada en espera: se paga si ${salePeriod} (mes de la venta) llega a $${Math.round(rules.thresholdPesos / 1e6)} M.`;
   pushLine(s, {
     companyId: doc.companyId,
     type: 'cobro',
@@ -205,13 +208,15 @@ export function onAllocation(s, payment, allocation, doc, ctx) {
     allocationId: allocation.id,
     operationAt: payment.receivedAt,
     period,
+    salePeriod,
     mode: doc.saleMode,
-    base,
+    base: baseAfter - baseBefore,
     ivaTreatment: 'proporcional_antes_iva',
     rateBps: mode.collectionBps,
     amount: applyBps(baseAfter, mode.collectionBps) - applyBps(baseBefore, mode.collectionBps),
-    status: eligible ? 'generada' : 'bloqueada',
-    blockedReason: eligible ? null : reason,
+    status: unlocked ? 'generada' : 'bloqueada',
+    pendingThreshold: !unlocked && !legacy,
+    blockedReason: unlocked ? null : reason,
     rulesSnapshot: snapshotRules(s, doc.companyId),
   }, ctx);
 }
@@ -284,6 +289,7 @@ export function thresholdStatus(s, companyId, period) {
     saleCommission: sum(live('venta'), (c) => c.amount),
     collectionCommission: sum(live('cobro'), (c) => c.amount),
     blocked: sum(lines.filter((c) => c.status === 'bloqueada'), (c) => c.amount),
+    waiting: sum(s.commissions.filter((c) => c.companyId === companyId && c.status === 'bloqueada' && c.pendingThreshold && (c.salePeriod || c.period) === period), (c) => c.amount),
     pending: sum(lines.filter((c) => c.status === 'generada'), (c) => c.amount),
     settled: sum(lines.filter((c) => c.status === 'liquidada'), (c) => c.amount),
     paid: sum(lines.filter((c) => c.status === 'pagada'), (c) => c.amount),
@@ -451,21 +457,20 @@ export function simulateSaleCommission(s, { companyId, date, net, total = null, 
   const period = periodOf(date);
   const unlock = unlockFor(s, companyId, period);
   const cumulative = periodSalesCumulative(s, companyId, period);
-  let eligible;
+  const eligible = net;
+  const waiting = thresholdStatus(s, companyId, period)?.waiting || 0;
   let note;
-  if (unlock) {
-    eligible = net;
-    note = 'El mes ya pasó los $70 M: toda la venta comisiona.';
-  } else if (cumulative + net >= rules.thresholdPesos) {
-    eligible = cumulative + net - rules.thresholdPesos;
-    note = eligible > 0 ? `Con esta venta cruzas el umbral: comisiona solo lo que pasa de ${rules.thresholdPesos / 1e6} M.` : 'Con esta venta llegas exactamente al umbral: aún no hay excedente que comisione.';
-  } else {
-    eligible = 0;
-    note = `Mes bloqueado: faltarían ${rules.thresholdPesos - cumulative - net} antes de IVA para llegar al umbral.`;
-  }
+  let unlocks = 0;
+  if (unlock) note = 'El mes ya pasó los $70 M: toda la venta comisiona.';
+  else if (cumulative + net >= rules.thresholdPesos) {
+    unlocks = waiting;
+    note = `Con esta venta el mes llega a los $70 M: se desbloquea la comisión acumulada del mes (${waiting}) más la de esta venta.`;
+  } else note = `Queda en espera: faltarían ${rules.thresholdPesos - cumulative - net} antes de IVA para llegar al umbral. Si el mes llega, se paga completa.`;
   return {
     kind: 'umbral',
     eligibleBase: eligible,
+    onHold: !unlock && cumulative + net < rules.thresholdPesos,
+    unlocks,
     sale: applyBps(eligible, mode.saleBps),
     collection: applyBps(eligible, mode.collectionBps),
     saleBps: mode.saleBps,
@@ -474,4 +479,54 @@ export function simulateSaleCommission(s, { companyId, date, net, total = null, 
     missingAfter: Math.max(0, rules.thresholdPesos - cumulative - net),
     note,
   };
+}
+
+/**
+ * Pasa los datos guardados con la regla anterior ("solo el excedente sobre el
+ * umbral, sin retroactividad") a la regla "todo o nada por mes". Se ejecuta
+ * una sola vez al abrir la app. No toca lo ya liquidado o pagado: si una
+ * línea liquidada quedó corta, se agrega un ajuste a favor.
+ */
+export function upgradeThresholdPolicy(s, ctx = {}) {
+  s.meta = s.meta || {};
+  if (s.meta.commissionPolicy === 'todo-o-nada') return 0;
+  let changed = 0;
+  const umbral = Object.keys(s.rules || {}).filter((co) => s.rules[co]?.kind === 'umbral');
+  const docs = new Map(s.documents.map((d) => [d.id, d]));
+  for (const c of [...s.commissions]) {
+    if (!umbral.includes(c.companyId) || c.type === 'ajuste') continue;
+    const doc = docs.get(c.documentId);
+    if (!doc || doc.legacy || doc.kind !== 'venta') continue;
+    const salePeriod = periodOf(doc.date);
+    c.salePeriod = salePeriod;
+    // Cobros de la venta del cruce: se calcularon solo sobre el excedente.
+    const elig = doc.commission?.eligibleBase;
+    if (c.type === 'cobro' && doc.commission?.saleEligible && Number.isSafeInteger(elig) && elig > 0 && elig < doc.totals.net && c.status !== 'reversada' && !c.reversedBy) {
+      const base = mulDiv(c.base, doc.totals.net, elig);
+      const amount = applyBps(base, c.rateBps);
+      if (c.status === 'generada' || c.status === 'bloqueada') Object.assign(c, { base, amount });
+      else if (amount > c.amount) pushLine(s, { companyId: c.companyId, type: 'ajuste', documentId: c.documentId, clientId: c.clientId, paymentId: c.paymentId, allocationId: c.allocationId, operationAt: nowOf(ctx), period: periodOf(nowOf(ctx)), salePeriod, mode: c.mode, base: base - c.base, ivaTreatment: c.ivaTreatment, rateBps: c.rateBps, amount: amount - c.amount, adjustmentReason: 'Regla "todo o nada": el cobro de la venta del cruce comisiona sobre toda la venta.', rulesSnapshot: c.rulesSnapshot }, ctx);
+      changed++;
+    }
+    if (c.status === 'bloqueada' && !c.reversedBy) {
+      c.pendingThreshold = true;
+      c.blockedReason = `Comisión acumulada en espera: se paga completa si ${salePeriod} llega al umbral.`;
+      changed++;
+    }
+  }
+  for (const d of s.documents) {
+    if (umbral.includes(d.companyId) && d.kind === 'venta' && !d.legacy && d.commission) d.commission.eligibleBase = d.totals.net;
+  }
+  for (const key of Object.keys(s.unlocks || {})) {
+    const [co, period] = key.split(':');
+    if (umbral.includes(co)) changed += releasePeriod(s, co, period, ctx);
+  }
+  s.meta.commissionPolicy = 'todo-o-nada';
+  for (const co of umbral) {
+    s.rules[co].crossingRule = 'todo_el_mes';
+    // Regla confirmada por el usuario el 22-oct-2026.
+    s.settings.policy = { ...(s.settings.policy || {}), [co]: { confirmed: true, confirmedAt: '2026-10-22T12:00:00.000Z', by: 'usuario', rulesSnapshot: snapshotRules(s, co) } };
+  }
+  if (changed) audit(s, ctx, 'politica_comisiones', 'comisiones', 'nogal', `Regla "todo o nada por mes" aplicada a ${changed} línea(s)`);
+  return changed;
 }
