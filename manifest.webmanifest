@@ -1,7 +1,7 @@
 {
   "name": "Mi Centro Comercial",
   "short_name": "Centro Comercial",
-  "description": "CRM de El Puntazo, Frutos del Nogal y Alegría Pet Home: clientes, ventas, cartera, cobros y comisiones.",
+  "description": "CRM de El Puntazo y Frutos del Nogal: clientes, ventas, cartera, cobros y comisiones.",
   "id": "./",
   "start_url": "./#/hoy",
   "scope": "./",
@@ -73,17 +73,6 @@
       "name": "Nuevo pedido",
       "short_name": "Pedido",
       "url": "./#/hoy?do=pedido",
-      "icons": [
-        {
-          "src": "icons/icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
-    },
-    {
-      "name": "Venta Alegría Pet Home",
-      "short_name": "Venta Alegría",
-      "url": "./#/hoy?do=alegria",
       "icons": [
         {
           "src": "icons/icon-192.png",

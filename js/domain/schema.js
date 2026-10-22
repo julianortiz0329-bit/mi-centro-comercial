@@ -5,7 +5,7 @@
 import { emptyPetHome } from './pethome.js';
 
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '3.2.0';
+export const APP_VERSION = '3.3.0';
 
 /** Reglas comerciales vigentes. Cada comisión guarda una copia de las reglas
  *  aplicadas (rulesSnapshot), así un cambio futuro no altera el historial. */

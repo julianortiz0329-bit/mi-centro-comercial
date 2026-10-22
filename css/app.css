@@ -1117,3 +1117,19 @@ body[data-mode="pethome"] .hero .deco-nogal { opacity: 0; }
 @keyframes pm-fade { from { opacity: 0; } }
 @keyframes pm-up { from { transform: translateY(30px) scale(.96); opacity: 0; } }
 .swipe-hint { display: flex; align-items: center; gap: 6px; justify-content: center; color: var(--fg-subtle); font-size: 12px; margin: 4px 0 10px; }
+
+/* Alegría: tu parte del mes (3.3) */
+.ale-card { display: flex; align-items: center; gap: 14px; margin: 12px 0; padding: 14px 16px; border-radius: 20px; text-decoration: none; color: var(--fg); background: linear-gradient(135deg, color-mix(in srgb, #f2a65a 16%, var(--surface)), var(--surface) 70%); border: 1px solid color-mix(in srgb, #f2a65a 35%, var(--border)); box-shadow: var(--shadow-card); }
+.ale-card .ale-paw { width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; font-size: 22px; background: linear-gradient(145deg, #2c3a57, #141b2b); }
+.ale-card .ale-main { display: grid; min-width: 0; flex: 1; }
+.ale-card .ale-main > small:first-child { color: #c2702b; font-weight: 700; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; }
+.ale-card .ale-main b { font-family: var(--font-display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ale-card .ale-main small { color: var(--fg-muted); }
+.ale-card .ale-side { display: grid; text-align: right; flex: 0 0 auto; }
+.ale-card .ale-side small { color: var(--fg-muted); font-size: 11.5px; }
+.ale-card .ale-side b { font-variant-numeric: tabular-nums; }
+.ale-card.ale-off { background: var(--surface); border-style: dashed; }
+.ale-card.ale-off span { display: grid; flex: 1; }
+.ale-card.ale-off small { color: var(--fg-muted); }
+.mono-input { flex: 1 1 220px; min-height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 12px; font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+body.discreet .ale-card b { filter: blur(7px); }

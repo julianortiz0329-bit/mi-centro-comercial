@@ -24,7 +24,7 @@ export function renderMore() {
     ['#/datos', '💾', 'Datos y copias de seguridad', 'Respaldar, restaurar, importar'],
     ['#/config', '⚙️', 'Configuración', 'Reglas, plazos, rangos de cartera, plantillas'],
     ['#/auditoria', '🧾', 'Registro de auditoría', 'Quién cambió qué y cuándo'],
-    ['#/pethome', '🐾', 'Alegría Pet Home (archivo)', 'Datos conservados de la versión 1'],
+    ['#/alegria', '🐾', 'Alegría Pet Home', 'Tu parte del mes y el libro de socios'],
     ['#/ayuda', '❓', 'Ayuda y acerca de', 'Cómo funciona y límites de esta versión'],
   ];
   return `<div class="page-head"><div><h1>Más</h1><p class="muted small">Versión ${APP_VERSION}</p></div></div><div class="menu-grid">${items.map(([h, i, t, d]) => `<a class="menu-tile" href="${h}"><span aria-hidden="true">${i}</span><div><b>${t}</b><small>${d}</small></div></a>`).join('')}</div>`;

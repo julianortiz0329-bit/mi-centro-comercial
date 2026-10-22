@@ -32,10 +32,7 @@ import { showLock, watchLock, whenUnlocked } from './ui/lock.js';
 import { openSearch } from './ui/search.js';
 import { bindGestures } from './ui/gestures.js';
 import { bindRipple, bindTilt, bounce, markMorph, odometer, paintGrain, setSections, sparkle, swapScreen, syncNavPill } from './ui/motion.js';
-import { phLogo, phProductQuery, phProductRows, renderPhHome, renderPhProducts, renderPhProfile, renderPhSale, renderPhSales, renderPhSupplier, renderPhSuppliers } from './ui/views-pethome.js';
-import { phNoteForm, phPaymentForm, phProductForm, phPurchaseForm, phPurchasePayForm, phSaleForm, phSupplierForm } from './ui/forms-pethome.js';
-import { chargeAccountPdf, paymentReceiptPdf } from './ui/pdf-pethome.js';
-import { completeSupplierFollowUp, importShopifyOrders, loadPetHomeCatalog, saleTotals, setPhCost, updatePhProfile, voidPhPayment, voidPhSale } from './domain/pethome.js';
+import { connectAlegria, disconnectAlegria, migrateToLibro, refreshAlegria, renderAlegria, saveLibroUrl } from './ui/alegria-link.js';
 import { parseContactText } from './domain/contact-parse.js';
 import { handleAgendaAction, renderAgenda, renderHome } from './ui/views-home.js';
 import { renderAudit, renderConfig, renderData, renderGoals, renderHelp, renderMore, renderPetHome, renderProducts, renderReports } from './ui/views-more.js';
@@ -59,35 +56,18 @@ const FAB_ITEMS = [
   ['new-client', 'userPlus', 'Nuevo cliente'],
   ['new-task', 'calendar', 'Programar tarea'],
 ];
-const PH_NAV = [
-  ['ph', 'home', 'Resumen'],
-  ['ph-ventas', 'receipt', 'Ventas'],
-  ['ph-proveedores', 'users', 'Proveedores', 'Proveed.'],
-  ['ph-productos', 'package', 'Productos', 'Catálogo'],
-  ['mas', 'grid', 'Más'],
-];
-const PH_FAB = [
-  ['ph-new-sale', 'receipt', 'Venta Alegría'],
-  ['ph-new-purchase', 'package', 'Compra a proveedor'],
-  ['ph-note', 'message', 'Anotar conversación con proveedor'],
-  ['ph-new-supplier', 'userPlus', 'Nuevo proveedor'],
-  ['ph-new-product', 'plus', 'Nuevo producto'],
-];
-const NAV_ORDER = ['hoy', 'clientes', 'ventas', 'cartera', 'comisiones', 'ph', 'ph-ventas', 'ph-proveedores', 'ph-productos', 'mas'];
-const GENERIC_ROUTES = ['mas', 'personalizar', 'datos', 'config', 'ayuda', 'auditoria', 'pethome'];
+const NAV_ORDER = ['hoy', 'clientes', 'ventas', 'cartera', 'comisiones', 'mas'];
+// Alegría se mudó a su propia app (libro de socios): las rutas viejas llevan a su resumen.
 const isPhRoute = (n) => n === 'ph' || n.startsWith('ph-');
-const SECTION = { 'ph-venta': 'ph-ventas', 'ph-proveedor': 'ph-proveedores', 'ph-perfil': 'ph', personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
+const SECTION = { alegria: 'mas', personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
 
 async function render() {
   const main = $('#main');
   const r = route();
-  // Las rutas deciden el modo: Alegría (ph-*) o el CRM de las empresas.
-  if (isPhRoute(r.name) && ui.scope !== 'pethome') setScope('pethome');
-  else if (!isPhRoute(r.name) && !GENERIC_ROUTES.includes(r.name) && ui.scope === 'pethome') setScope(ui.lastCrmScope || 'todas');
+  if (isPhRoute(r.name)) return navigate('#/alegria');
   renderChrome();
   renderGreeting();
   const sec = SECTION[r.name] || r.name;
-  const focusKey = document.activeElement?.dataset?.phCost ? `[data-ph-cost="${document.activeElement.dataset.phCost}"]` : document.activeElement?.dataset?.phPrice ? `[data-ph-price="${document.activeElement.dataset.phPrice}"]` : null;
   $$('[data-nav-item]').forEach((a) => a.classList.toggle('active', a.dataset.navItem === sec));
   $$('button[data-scope]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scope === ui.scope)));
   document.body.dataset.activeScope = ui.scope;
@@ -109,13 +89,7 @@ async function render() {
       case 'datos': html = await renderData(); break;
       case 'config': html = renderConfig(); break;
       case 'personalizar': html = renderPersonalize(); break;
-      case 'ph': html = renderPhHome(r.params); break;
-      case 'ph-ventas': html = renderPhSales(r.params); break;
-      case 'ph-venta': html = renderPhSale(r.id); break;
-      case 'ph-proveedores': html = renderPhSuppliers(); break;
-      case 'ph-proveedor': html = renderPhSupplier(r.id); break;
-      case 'ph-productos': html = renderPhProducts(r.params); break;
-      case 'ph-perfil': html = renderPhProfile(); break;
+      case 'alegria': html = renderAlegria(S()); break;
       case 'pethome': html = renderPetHome(); break;
       case 'auditoria': html = renderAudit(); break;
       case 'ayuda': html = renderHelp(); break;
@@ -154,45 +128,43 @@ async function render() {
   lastRoute = r.name;
   syncNavPill(true);
   if (r.name === 'personalizar') afterPersonalize();
-  if (focusKey) $(focusKey)?.focus({ preventScroll: true });
+  // Tu parte de Alegría se trae del libro en segundo plano.
+  if (r.name === 'hoy' || r.name === 'alegria') refreshAlegria().then((changed) => changed && render());
 }
 
 let chromeKey = '';
 function renderChrome() {
-  const ph = ui.scope === 'pethome';
-  document.body.dataset.mode = ph ? 'pethome' : 'crm';
-  if (chromeKey === (ph ? 'ph' : 'crm')) return;
-  chromeKey = ph ? 'ph' : 'crm';
-  const list = ph ? PH_NAV : NAV;
+  document.body.dataset.mode = 'crm';
+  if (chromeKey) return;
+  chromeKey = 'crm';
+  const list = NAV;
   $('#nav-main').innerHTML = list.map(([k, i, l]) => `<a href="#/${k}" data-nav-item="${k}">${icon(i)}<span>${l}</span></a>`).join('');
   const items = list.map(([k, i, l, sh]) => `<a href="#/${k}" data-nav-item="${k}" aria-label="${l}">${icon(i)}<span>${sh || l}</span></a>`);
   // Barra de abajo: mitad de secciones a cada lado del botón + central.
   const half = Math.floor(items.length / 2);
   $('#nav-top').innerHTML = `<div class="tb-half">${items.slice(0, half).join('')}</div><span class="tb-gap" aria-hidden="true"></span><div class="tb-half">${items.slice(half).join('')}</div>`;
-  $('#fab-menu').innerHTML = (ph ? PH_FAB : FAB_ITEMS).map(([act, ic, label, kind]) => `<button type="button" data-act="${act}"${kind ? ` data-kind="${kind}"` : ''}>${icon(ic)}${label}</button>`).join('');
+  $('#fab-menu').innerHTML = FAB_ITEMS.map(([act, ic, label, kind]) => `<button type="button" data-act="${act}"${kind ? ` data-kind="${kind}"` : ''}>${icon(ic)}${label}</button>`).join('');
   greetKey = '';
 }
 
 /** Saludo con el resumen del día y el contador de vencidos en Cartera. */
 let greetKey = '';
 function renderGreeting() {
-  const ph = ui.scope === 'pethome';
   const h = new Date().getHours();
   const hello = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
   const name = (S().settings.sellerName || '').trim().split(/\s+/)[0];
-  const ag = ph ? [] : buildAgenda(S(), 'todas').filter((x) => x.type === 'cobro');
+  const ag = buildAgenda(S(), 'todas').filter((x) => x.type === 'cobro');
   const today = ag.filter((x) => x.days <= 0).length;
   const late = ag.filter((x) => x.days < 0).length;
-  const sub = ph ? 'Alegría Pet Home' : today ? `${today} cobro${today === 1 ? '' : 's'} para hoy` : 'Sin cobros pendientes hoy';
-  // En Hoy y en el Resumen la pantalla ya saluda: arriba va el nombre de la app.
-  const home = ['hoy', 'ph'].includes(route().name);
-  const key = `${ph}|${hello}|${name}|${sub}|${late}|${home}`;
+  const sub = today ? `${today} cobro${today === 1 ? '' : 's'} para hoy` : 'Sin cobros pendientes hoy';
+  // En Hoy la pantalla ya saluda: arriba va el nombre de la app.
+  const home = route().name === 'hoy';
+  const key = `${hello}|${name}|${sub}|${late}|${home}`;
   if (key === greetKey) return;
   greetKey = key;
   const brand = $('.brand.mobile-only');
-  const title = home ? (ph ? 'Alegría Pet Home' : 'Mi Centro Comercial') : `${hello}${name ? `, ${name}` : ''}`;
-  const line = home && ph ? 'Tu tienda de mascotas' : sub;
-  if (brand) brand.innerHTML = `${ph ? phLogo(34) : monogram(34)}<div class="greet"><b>${esc(title)}</b><small>${esc(line)}</small></div>`;
+  const title = home ? 'Mi Centro Comercial' : `${hello}${name ? `, ${name}` : ''}`;
+  if (brand) brand.innerHTML = `${monogram(34)}<div class="greet"><b>${esc(title)}</b><small>${esc(sub)}</small></div>`;
   for (const a of $$('[data-nav-item="cartera"]')) {
     a.querySelector('.nav-badge')?.remove();
     if (late) a.insertAdjacentHTML('beforeend', `<i class="nav-badge" aria-label="${late} vencidos">${late > 99 ? '99+' : late}</i>`);
@@ -286,13 +258,13 @@ const handlers = {
       } catch {
         /* sin caché */
       }
-      if (file) return clientForm(null, { rutFile: file, sourceText: 'RUT recibido por WhatsApp (PDF)', companyId: ui.scope !== 'todas' && ui.scope !== 'pethome' ? ui.scope : 'puntazo' });
+      if (file) return clientForm(null, { rutFile: file, sourceText: 'RUT recibido por WhatsApp (PDF)', companyId: ui.scope !== 'todas' ? ui.scope : 'puntazo' });
     }
     const vcf = payload.files.find((f) => /vcard|directory/i.test(f.type) || /\.vcf$/i.test(f.name) || /BEGIN:VCARD/i.test(f.text));
     const raw = vcf ? vcf.text : [payload.title, payload.text, payload.url, ...payload.files.map((f) => f.text)].filter(Boolean).join('\n');
     const prefill = parseContactText(raw);
     const source = vcf ? `Contacto compartido${prefill.tradeName ? `: ${prefill.tradeName}` : ''}` : [payload.title, payload.text].filter(Boolean).join('\n');
-    clientForm(null, { prefill, sourceText: source, companyId: ui.scope !== 'todas' && ui.scope !== 'pethome' ? ui.scope : 'puntazo' });
+    clientForm(null, { prefill, sourceText: source, companyId: ui.scope !== 'todas' ? ui.scope : 'puntazo' });
     if (!prefill.phone && !prefill.tradeName) toast('No encontré nombre ni número en lo compartido. Completa los datos a mano.', 'error');
   },
   'why-comm': (el) => {
@@ -461,92 +433,26 @@ const handlers = {
   },
 };
 
-const PH = () => S().pethome;
-const phSale = (id) => PH().sales.find((x) => x.id === id);
-async function sharePhPdf(bytes, name, title) {
-  const r = await sharePdf(bytes, name.replace(/[\\/:*?"<>|]/g, ''), title);
-  if (r === 'downloaded') toast('PDF descargado. Búscalo en Descargas para enviarlo.');
-}
-function phWhatsApp(sale) {
-  const pf = PH().profile;
-  const t = saleTotals(sale);
-  const first = sale.customerName.split(/\s+/)[0];
-  const text = t.balance
-    ? `Hola ${first}, te comparto la cuenta de cobro ${sale.number} de ${pf.brand}. Total ${money(t.total)}${t.paid ? `, abonado ${money(t.paid)}` : ''}. Saldo pendiente: ${money(t.balance)}.${pf.payInfo ? `\nPuedes pagar a: ${pf.payInfo}` : ''}\n¡Gracias por tu compra! 🐾`
-    : `Hola ${first}, confirmamos el pago total de tu compra ${sale.number} en ${pf.brand} por ${money(t.total)}. ¡Gracias! 🐾`;
-  const phone = normalizePhone(sale.customerPhone);
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-}
-/** Trae el logo publicado en la tienda Shopify (si el CDN lo permite). */
-async function logoFromShopify() {
-  const url = PH().profile.logoUrl;
-  try {
-    const res = await fetch(url, { mode: 'cors' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const logo = await imageToJpeg(await res.blob(), 480);
-    await exec(updatePhProfile, { logo }, { success: 'Logo de Alegría guardado' });
-  } catch {
-    toast('No pude traer el logo desde Shopify en este momento. Descárgalo de tu tienda y súbelo con "Subir imagen".', 'error');
-  }
-}
 Object.assign(handlers, {
-  async 'ph-load-catalog'() {
-    const r = await exec(loadPetHomeCatalog, {});
-    if (r) toast(`${r.added} producto(s) cargados${r.costs ? ` · ${r.costs} costo(s) recuperados` : ''}${r.suppliers ? ` · ${r.suppliers} proveedor(es) de la versión anterior` : ''}`);
-    if (r && !PH().profile.logo) logoFromShopify();
+  async 'alegria-refresh'() {
+    await refreshAlegria(true);
+    render();
   },
-  'ph-new-sale': () => {
-    if (!PH().products.length) toast('Tip: carga primero tus productos de Shopify desde el Resumen.', 'ok');
-    phSaleForm();
+  'alegria-disconnect'() {
+    disconnectAlegria();
+    render();
   },
-  'ph-repeat': (el) => phSaleForm(phSale(el.dataset.id)),
-  'ph-pay': (el) => phPaymentForm(el.dataset.id, async (p) => {
-    const sale = phSale(el.dataset.id);
-    toast(`Abono de ${money(p.amount)} registrado`, 'ok', { action: { label: 'Recibo PDF', icon: 'file', onClick: () => sharePhPdf(paymentReceiptPdf(S(), phSale(sale.id), phSale(sale.id).payments.find((x) => x.id === p.id)), `Recibo ${p.number} ${sale.customerName}.pdf`, `Recibo ${p.number}`) } });
-  }),
-  async 'ph-charge-pdf'(el) {
-    const sale = phSale(el.dataset.id);
-    if (!PH().profile.issuerName) toast('Completa en "Mis datos para cobrar" el titular del RUT para que salga en la cuenta.', 'error');
+  async 'alegria-migrate'() {
+    const ok = await confirmDialog({ title: 'Enviar datos de Alegría al libro', message: 'Se suben tus ventas, compras, proveedores y costos de Alegría al libro de socios. Lo que ya esté allá no se duplica.', confirmText: 'Enviar' });
+    if (!ok) return;
     try {
-      await sharePhPdf(chargeAccountPdf(S(), sale), `Cuenta de cobro ${sale.number} ${sale.customerName}.pdf`, `Cuenta de cobro ${sale.number}`);
+      const r = await migrateToLibro(S());
+      toast(`Listo: ${r.sales} venta(s) y ${r.products} producto(s) enviados al libro`);
+      render();
     } catch (e) {
-      toast(`No se pudo crear el PDF: ${e.message}`, 'error');
+      toast(e.message, 'error');
     }
   },
-  async 'ph-receipt-pdf'(el) {
-    const sale = phSale(el.dataset.id);
-    const pays = sale.payments.filter((p) => p.status === 'activo');
-    const p = el.dataset.pay ? sale.payments.find((x) => x.id === el.dataset.pay) : pays[pays.length - 1];
-    if (!p) return toast('Esta venta no tiene abonos.', 'error');
-    try {
-      await sharePhPdf(paymentReceiptPdf(S(), sale, p), `Recibo ${p.number} ${sale.customerName}.pdf`, `Recibo ${p.number}`);
-    } catch (e) {
-      toast(`No se pudo crear el PDF: ${e.message}`, 'error');
-    }
-  },
-  'ph-wa': (el) => phWhatsApp(phSale(el.dataset.id)),
-  async 'ph-void-sale'(el) {
-    const reason = await confirmDialog({ title: 'Anular venta', message: 'La venta queda anulada con su motivo (no se borra) y sus abonos también.', reason: true, confirmText: 'Anular', danger: true });
-    if (reason) await exec(voidPhSale, { saleId: el.dataset.id, reason }, { success: 'Venta anulada' });
-  },
-  async 'ph-void-pay'(el) {
-    const reason = await confirmDialog({ title: 'Anular abono', message: 'El abono queda anulado (no se borra) y el saldo vuelve a quedar pendiente.', reason: true, confirmText: 'Anular abono', danger: true });
-    if (reason) await exec(voidPhPayment, { saleId: el.dataset.id, paymentId: el.dataset.pay, reason }, { success: 'Abono anulado' });
-  },
-  'ph-new-supplier': () => phSupplierForm(),
-  'ph-edit-supplier': (el) => phSupplierForm(PH().suppliers.find((x) => x.id === el.dataset.id)),
-  'ph-note': (el) => {
-    const id = el.dataset.id || (route().name === 'ph-proveedor' ? route().id : null) || PH().suppliers[0]?.id;
-    if (!id) return toast('Primero crea un proveedor.', 'error');
-    phNoteForm(id);
-  },
-  'ph-note-done': (el) => exec(completeSupplierFollowUp, { noteId: el.dataset.id }, { success: 'Seguimiento hecho' }),
-  'ph-new-purchase': (el) => phPurchaseForm(el.dataset.id || (route().name === 'ph-proveedor' ? route().id : null)),
-  'ph-purchase-pay': (el) => phPurchasePayForm(el.dataset.id),
-  'ph-new-product': () => phProductForm(),
-  'ph-edit-product': (el) => phProductForm(PH().products.find((x) => x.id === el.dataset.id)),
-  'ph-logo-shopify': () => logoFromShopify(),
-  'ph-logo-remove': () => exec(updatePhProfile, { logo: null }, { success: 'Logo quitado' }),
 });
 
 const pz = personalizeHandlers(() => render());
@@ -669,8 +575,7 @@ document.addEventListener('click', async (e) => {
     const to = scopeBtn.dataset.scope;
     const r = route();
     setScope(to);
-    if (to === 'pethome') navigate(isPhRoute(r.name) ? location.hash : '#/ph');
-    else if (isPhRoute(r.name)) navigate('#/hoy');
+    if (isPhRoute(r.name)) navigate('#/hoy');
     else render();
     return;
   }
@@ -706,38 +611,6 @@ document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.matches('[data-nav]')) return navigate(t.value);
   if (t.matches('[data-photo]')) return pz.photo(t);
-  if (t.matches('[data-ph-cost],[data-ph-price]')) {
-    const id = t.dataset.phCost || t.dataset.phPrice;
-    const p = S().pethome.products.find((x) => x.id === id);
-    const raw = t.value.trim();
-    const v = raw === '' ? null : parsePesos(raw);
-    if (raw !== '' && !Number.isSafeInteger(v)) return toast('Escribe el valor en pesos, sin letras.', 'error');
-    if (t.dataset.phCost && v === p.cost) return;
-    if (t.dataset.phPrice && (v === p.price || v === null)) return;
-    await exec(setPhCost, t.dataset.phCost ? { productId: id, cost: v } : { productId: id, cost: p.cost, price: v }).catch(() => {});
-    return;
-  }
-  if (t.matches('[data-ph-logo]') && t.files?.[0]) {
-    const file = t.files[0];
-    t.value = '';
-    try {
-      await exec(updatePhProfile, { logo: await imageToJpeg(file, 480) }, { success: 'Logo guardado' });
-    } catch (e) {
-      toast(`No se pudo usar esa imagen: ${e.message}`, 'error');
-    }
-    return;
-  }
-  if (t.matches('[data-ph-import]') && t.files?.[0]) {
-    const file = t.files[0];
-    t.value = '';
-    try {
-      const r = await exec(importShopifyOrders, { text: await file.text() });
-      if (r) openModal({ title: 'Pedidos de Shopify', body: `<p><b>${r.added}</b> pedido(s) nuevos por ${money(r.total)}.</p>${r.skipped.length ? `<p class="muted small">${r.skipped.length} omitido(s): ${esc(r.skipped.slice(0, 20).join(' · '))}</p>` : ''}${r.unmatched.length ? `<div class="notice warn">Estos productos no están en tu lista (quedaron sin costo): ${esc(r.unmatched.join(', '))}</div>` : ''}`, cancelText: 'Cerrar' });
-    } catch {
-      /* exec ya mostró el error */
-    }
-    return;
-  }
   if (t.matches('[data-toggle]')) return pz.toggle(t);
   if (t.matches('[data-home-toggle]')) return pz.homeToggle(t);
   if (t.matches('[data-lock-minutes]')) return pz.lockMinutes(t);
@@ -789,10 +662,6 @@ document.addEventListener('input', (e) => {
   } else if (t.id === 'sales-q') {
     salesQuery.q = t.value;
     $('#sales-results').innerHTML = salesResults(t.dataset.kind);
-  } else if (t.id === 'ph-prod-q' || t.id === 'ph-sim') {
-    phProductQuery.q = $('#ph-prod-q').value;
-    phProductQuery.sim = Math.max(0, Math.min(90, Number(String($('#ph-sim').value).replace(',', '.')) || 0));
-    $('#ph-prod-list').innerHTML = phProductRows();
   } else if (t.id === 'prod-q') {
     const q = t.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     let shown = 0;
@@ -827,8 +696,22 @@ document.addEventListener('submit', async (e) => {
   } else if (f.dataset.form === 'profile') {
     const pf = Object.fromEntries(['legalName', 'nit', 'phone', 'email', 'address', 'city', 'quoteTerms'].map((k) => [k, fd.get(k)]));
     await exec(updateSettings, { companyProfile: { companyId: f.dataset.co, ...pf } }, { success: 'Datos guardados' }).catch(() => {});
-  } else if (f.dataset.form === 'ph-profile') {
-    await exec(updatePhProfile, Object.fromEntries(['brand', 'issuerName', 'issuerId', 'phone', 'email', 'city', 'web', 'payInfo', 'taxNote', 'minMarginPct'].map((k) => [k, fd.get(k)])), { success: 'Datos guardados' }).catch(() => {});
+  } else if (f.dataset.form === 'alegria-connect') {
+    try {
+      const r = await connectAlegria(fd.get('clave'));
+      toast(`Conectado como ${r.socio}`);
+      render();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  } else if (f.dataset.form === 'alegria-url') {
+    try {
+      saveLibroUrl(fd.get('url'));
+      toast('Dirección guardada');
+      render();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   } else if (f.dataset.form === 'templates') {
     const waTemplates = {};
     for (const [k, v] of fd.entries()) if (k.startsWith('tpl_')) waTemplates[k.slice(4)] = v;
@@ -939,14 +822,13 @@ function syncDiscreet() {
 }
 
 const bootStart = performance.now();
-const SHORTCUTS = { compartido: ['shared'], venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'], alegria: ['ph-new-sale'] };
+const SHORTCUTS = { compartido: ['shared'], venta: ['new-doc', 'venta'], pedido: ['new-doc', 'pedido'], cotizacion: ['new-doc', 'cotizacion'], cobro: ['pay'], registro: ['quick-log'], buscar: ['search'] };
 /** Atajos del ícono de la app (mantener presionado): #/hoy?do=venta, etc. */
 async function runShortcut() {
   const r = route();
   const sc = SHORTCUTS[r.params.get('do')];
   if (!sc) return;
-  history.replaceState(null, '', sc[0] === 'ph-new-sale' ? '#/ph' : '#/hoy');
-  if (sc[0] === 'ph-new-sale') render();
+  history.replaceState(null, '', '#/hoy');
   await whenUnlocked();
   const el = document.createElement('button');
   if (sc[1]) el.dataset.kind = sc[1];
@@ -988,7 +870,7 @@ async function boot() {
       el.dataset.client = clientId;
       handlers[act]?.(el);
     },
-    sections: () => ({ list: (ui.scope === 'pethome' ? PH_NAV : NAV).map((x) => x[0]), current: route().name }),
+    sections: () => ({ list: NAV.map((x) => x[0]), current: route().name }),
     canPull: () => ['hoy', 'ph'].includes(route().name),
     onRefresh: async () => {
       lastKey = '';

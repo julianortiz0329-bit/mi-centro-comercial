@@ -13,6 +13,7 @@ function readPrefs() {
 export const HOME_SECTIONS = {
   acciones: 'Lo importante hoy',
   hero: 'Tarjeta de comisión',
+  alegria: 'Alegría: tu parte del mes',
   accesos: 'Accesos rápidos',
   indicadores: 'Indicadores del mes',
   umbral: 'Umbral y ritmo de Nogal',
@@ -32,11 +33,13 @@ export const PALETTES = {
 const p0 = readPrefs();
 const cleanOrder = (o) => {
   const valid = Array.isArray(o) ? o.filter((k) => HOME_SECTIONS[k]) : [];
+  // Secciones nuevas: el cuadrito de Alegría va justo después de la comisión.
+  if (valid.length && !valid.includes('alegria')) valid.splice(valid.includes('hero') ? valid.indexOf('hero') + 1 : 0, 0, 'alegria');
   return [...new Set([...valid, ...DEFAULT_HOME])];
 };
 
 export const ui = {
-  scope: ['puntazo', 'nogal', 'todas', 'pethome'].includes(p0.scope) ? p0.scope : 'todas',
+  scope: ['puntazo', 'nogal', 'todas'].includes(p0.scope) ? p0.scope : 'todas',
   lastCrmScope: ['puntazo', 'nogal', 'todas'].includes(p0.lastCrmScope) ? p0.lastCrmScope : 'todas',
   privacy: !!p0.privacy,
   theme: ['auto', 'light', 'dark'].includes(p0.theme) ? p0.theme : 'auto',
@@ -53,7 +56,7 @@ export const ui = {
 };
 
 export function setScope(scope) {
-  if (scope !== 'pethome') ui.lastCrmScope = scope;
+  ui.lastCrmScope = scope;
   ui.scope = scope;
   savePrefs();
 }

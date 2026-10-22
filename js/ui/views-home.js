@@ -9,6 +9,7 @@ import { inactiveClients } from '../domain/clients.js';
 import { getState } from '../store/store.js';
 import { confirmDialog, empty, esc, exec, money, pill, progress, stat } from './dom.js';
 import { HOME_SECTIONS, ui } from './state.js';
+import { alegriaCard } from './alegria-link.js';
 import { isActiveSale } from '../domain/ledger.js';
 import { lastOrderFor } from '../domain/pricing.js';
 import { userAvatar } from './personalize.js';
@@ -222,6 +223,7 @@ export function renderHome() {
   const sections = {
     acciones: () => actionCards(s, agenda, d, cos),
     hero: () => hero(s, d, cos),
+    alegria: () => alegriaCard(),
     accesos: () => `<div class="quick-tiles"><button class="quick-tile" data-act="quick-log">${icon('zap')}Registro rápido</button><button class="quick-tile" data-act="new-doc" data-kind="pedido">${icon('clipboard')}Pedido</button><button class="quick-tile" data-act="pay">${icon('cash')}Cobro</button><button class="quick-tile" data-act="search">${icon('search')}Buscar</button></div>`,
     indicadores: () => `<div class="stats">
     ${stat('Vendido este mes (antes de IVA)', money(d.total.salesNet), `Con IVA: ${money(d.total.salesTotal)}`)}
