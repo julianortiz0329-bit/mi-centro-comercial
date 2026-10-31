@@ -3,133 +3,137 @@
    lujo (casi negro con dorado). Los componentes solo usan estos tokens. */
 @font-face { font-family: 'Fraunces'; font-style: normal; font-weight: 500 700; font-display: swap; src: url('../fonts/fraunces-latin.woff2') format('woff2'); }
 @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('../fonts/inter-latin.woff2') format('woff2'); }
+/* Identidad 3.5 "Esmeralda": blanco, azul marino y verde esmeralda, letra Inter.
+   La identidad anterior queda como la colección "Nogal clásico" (data-palette="clasico"). */
 :root {
   color-scheme: light;
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --bg: #f6f2e8;
-  --surface: #fffdf8;
-  --surface-muted: #f0eadc;
-  --fg: #1c2a23;
-  --fg-muted: #5b675f;
-  --fg-subtle: #8b938c;
-  --border: #e5ddcb;
-  --ring: #b8893b;
-  --primary: #1f4d3e;
-  --primary-hover: #163a2f;
-  --primary-fg: #fbf7ec;
-  --primary-soft: #e3ede6;
-  --gold: #b8893b;
-  --gold-strong: #8f6626;
-  --gold-soft: #f5ead2;
-  --positive: #2e7650;
-  --positive-soft: #e2f1e7;
-  --negative: #b0433a;
-  --negative-soft: #f8e5e2;
-  --warning: #a8701d;
-  --warning-soft: #f8ecd4;
-  --info: #2f5d86;
-  --info-soft: #e5edf5;
-  --hero-a: #1f4d3e;
-  --hero-b: #0f2a22;
-  --hero-fg: #f6efdd;
-  --hero-accent: #e3c27a;
-  --hero-accent-2: #f1d79e;
-  --splash-a: #24584a;
-  --fab-a: #2a6450;
-  --fab-b: #163a2f;
-  --fab-fg: #f3dfae;
-  --shadow-card: 0 1px 2px rgb(60 45 20 / 0.05), 0 4px 14px rgb(60 45 20 / 0.06);
-  --shadow-pop: 0 18px 40px rgb(30 25 15 / 0.22);
-  --puntazo: #c2563e; --puntazo-soft: #f8e4dc;
-  --nogal: #8f6626; --nogal-soft: #f5ead2;
+  --font-display: var(--font-sans);
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --fg: #0f172a;
+  --fg-muted: #64748b;
+  --fg-subtle: #94a3b8;
+  --border: #e2e8f0;
+  --ring: #10b981;
+  --primary: #047857;
+  --primary-hover: #065f46;
+  --primary-fg: #ffffff;
+  --primary-soft: #d1fae5;
+  --gold: #10b981;
+  --gold-strong: #047857;
+  --gold-soft: #d1fae5;
+  --positive: #047857;
+  --positive-soft: #d1fae5;
+  --negative: #dc2626;
+  --negative-soft: #fee2e2;
+  --warning: #c2410c;
+  --warning-soft: #ffedd5;
+  --info: #3730a3;
+  --info-soft: #e0e7ff;
+  --hero-a: #0f172a;
+  --hero-b: #0b1222;
+  --hero-fg: #ffffff;
+  --hero-accent: #34d399;
+  --hero-accent-2: #6ee7b7;
+  --splash-a: #13213d;
+  --fab-a: #10b981;
+  --fab-b: #047857;
+  --fab-fg: #ffffff;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 16px rgb(15 23 42 / 0.05);
+  --shadow-pop: 0 18px 40px rgb(15 23 42 / 0.18);
+  --puntazo: #dc2626; --puntazo-soft: #fee2e2;
+  --nogal: #8b5a2b; --nogal-soft: #f5ebdd;
   --pethome: #4a5f9c; --pethome-soft: #e6eaf6;
-  --scope-accent: var(--gold);
+  --scope-accent: var(--primary);
   /* Alias heredados */
   --forest: var(--primary); --forest2: var(--primary-hover); --mint: var(--primary-soft); --cream: var(--bg); --paper: var(--surface);
   --ink: var(--fg); --muted: var(--fg-muted); --line: var(--border); --gold-bg: var(--warning-soft);
   --red: var(--negative); --red-bg: var(--negative-soft); --blue: var(--info); --blue-bg: var(--info-soft); --ok: var(--positive); --ok-bg: var(--positive-soft);
-  --wa: var(--positive); --radius: 18px; --shadow: var(--shadow-card);
+  --wa: var(--positive); --radius: 16px; --shadow: var(--shadow-card);
   --tap: 44px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0c110f;
-    --surface: #141b18;
-    --surface-muted: #1b2420;
-    --fg: #f1ebdd;
-    --fg-muted: #b0b6ad;
-    --fg-subtle: #7c857e;
-    --border: #27312c;
-    --ring: #d9b56a;
-    --primary: #d4ad62;
-    --primary-hover: #e3c27a;
-    --primary-fg: #17120a;
-    --primary-soft: #2a2416;
-    --gold: #d4ad62;
-    --gold-strong: #e3c27a;
-    --gold-soft: #2a2416;
-    --positive: #7fcb9c;
-    --positive-soft: #18291f;
-    --negative: #ec8f84;
-    --negative-soft: #2e1916;
-    --warning: #e6b866;
-    --warning-soft: #2c2314;
-    --info: #8fb6dd;
-    --info-soft: #172330;
-    --hero-a: #1a2621;
-    --hero-b: #0a0f0d;
-    --hero-fg: #f1ebdd;
-    --fab-a: #e3c27a;
-    --fab-b: #b8893b;
-    --fab-fg: #17120a;
+    --bg: #0b1220;
+    --surface: #111a2e;
+    --surface-muted: #17223a;
+    --fg: #f1f5f9;
+    --fg-muted: #a7b4c8;
+    --fg-subtle: #7b8aa3;
+    --border: #22304a;
+    --ring: #34d399;
+    --primary: #34d399;
+    --primary-hover: #6ee7b7;
+    --primary-fg: #04241a;
+    --primary-soft: #0f3a2e;
+    --gold: #34d399;
+    --gold-strong: #6ee7b7;
+    --gold-soft: #0f3a2e;
+    --positive: #6ee7b7;
+    --positive-soft: #0f3a2e;
+    --negative: #f87171;
+    --negative-soft: #3a1a1d;
+    --warning: #fdba74;
+    --warning-soft: #3a2614;
+    --info: #a5b4fc;
+    --info-soft: #1e2350;
+    --hero-a: #13213d;
+    --hero-b: #0a1222;
+    --hero-fg: #ffffff;
+    --fab-a: #34d399;
+    --fab-b: #10b981;
+    --fab-fg: #04241a;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-pop: 0 18px 40px rgb(0 0 0 / 0.6);
-    --puntazo: #f09a80; --puntazo-soft: #2f1c16;
-    --nogal: #e3c27a; --nogal-soft: #2a2416;
+    --puntazo: #f87171; --puntazo-soft: #3a1a1d;
+    --nogal: #d6a76f; --nogal-soft: #33261a;
     --pethome: #9fb2e8; --pethome-soft: #1b2133;
-  --fab-fg: #17120a; --splash-a: var(--hero-a); }
+    --splash-a: var(--hero-a);
+  }
 }
 :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0c110f;
-    --surface: #141b18;
-    --surface-muted: #1b2420;
-    --fg: #f1ebdd;
-    --fg-muted: #b0b6ad;
-    --fg-subtle: #7c857e;
-    --border: #27312c;
-    --ring: #d9b56a;
-    --primary: #d4ad62;
-    --primary-hover: #e3c27a;
-    --primary-fg: #17120a;
-    --primary-soft: #2a2416;
-    --gold: #d4ad62;
-    --gold-strong: #e3c27a;
-    --gold-soft: #2a2416;
-    --positive: #7fcb9c;
-    --positive-soft: #18291f;
-    --negative: #ec8f84;
-    --negative-soft: #2e1916;
-    --warning: #e6b866;
-    --warning-soft: #2c2314;
-    --info: #8fb6dd;
-    --info-soft: #172330;
-    --hero-a: #1a2621;
-    --hero-b: #0a0f0d;
-    --hero-fg: #f1ebdd;
-    --fab-a: #e3c27a;
-    --fab-b: #b8893b;
-    --fab-fg: #17120a;
+    --bg: #0b1220;
+    --surface: #111a2e;
+    --surface-muted: #17223a;
+    --fg: #f1f5f9;
+    --fg-muted: #a7b4c8;
+    --fg-subtle: #7b8aa3;
+    --border: #22304a;
+    --ring: #34d399;
+    --primary: #34d399;
+    --primary-hover: #6ee7b7;
+    --primary-fg: #04241a;
+    --primary-soft: #0f3a2e;
+    --gold: #34d399;
+    --gold-strong: #6ee7b7;
+    --gold-soft: #0f3a2e;
+    --positive: #6ee7b7;
+    --positive-soft: #0f3a2e;
+    --negative: #f87171;
+    --negative-soft: #3a1a1d;
+    --warning: #fdba74;
+    --warning-soft: #3a2614;
+    --info: #a5b4fc;
+    --info-soft: #1e2350;
+    --hero-a: #13213d;
+    --hero-b: #0a1222;
+    --hero-fg: #ffffff;
+    --fab-a: #34d399;
+    --fab-b: #10b981;
+    --fab-fg: #04241a;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-pop: 0 18px 40px rgb(0 0 0 / 0.6);
-    --puntazo: #f09a80; --puntazo-soft: #2f1c16;
-    --nogal: #e3c27a; --nogal-soft: #2a2416;
+    --puntazo: #f87171; --puntazo-soft: #3a1a1d;
+    --nogal: #d6a76f; --nogal-soft: #33261a;
     --pethome: #9fb2e8; --pethome-soft: #1b2133;
+    --splash-a: var(--hero-a);
   }
 body[data-active-scope="puntazo"] { --scope-accent: var(--puntazo); }
-body[data-active-scope="nogal"] { --scope-accent: var(--gold); }
+body[data-active-scope="nogal"] { --scope-accent: var(--nogal); }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; overscroll-behavior-y: contain; }
@@ -599,6 +603,9 @@ body.discreet :is(.stat-value, .hero-amount, .hero-sub b, .price-row b, .totals 
 @media (max-width: 430px) { .tab-bar a span { font-size: 10px; letter-spacing: -0.015em; } }
 
 /* ===================== Personalización (2.4) ===================== */
+:root:is([data-palette="clasico"], [data-palette="zafiro"], [data-palette="ciruela"], [data-palette="terracota"], [data-palette="grafito"]) { --radius: 18px; --warning: #a8701d; --warning-soft: #f8ecd4; --font-display: 'Fraunces', Georgia, 'Times New Roman', serif; --bg: #f6f2e8; --surface: #fffdf8; --surface-muted: #f0eadc; --fg: #1c2a23; --fg-muted: #5b675f; --fg-subtle: #8b938c; --border: #e5ddcb; --ring: #b8893b; --primary: #1f4d3e; --primary-hover: #163a2f; --primary-fg: #fbf7ec; --primary-soft: #e3ede6; --gold: #b8893b; --gold-strong: #8f6626; --gold-soft: #f5ead2; --positive: #2e7650; --positive-soft: #e2f1e7; --negative: #b0433a; --negative-soft: #f8e5e2; --info: #2f5d86; --info-soft: #e5edf5; --hero-a: #1f4d3e; --hero-b: #0f2a22; --hero-fg: #f6efdd; --hero-accent: #e3c27a; --hero-accent-2: #f1d79e; --splash-a: #24584a; --fab-a: #2a6450; --fab-b: #163a2f; --fab-fg: #f3dfae; --shadow-card: 0 1px 2px rgb(60 45 20 / 0.05), 0 4px 14px rgb(60 45 20 / 0.06); --shadow-pop: 0 18px 40px rgb(30 25 15 / 0.22); --puntazo: #c2563e; --puntazo-soft: #f8e4dc; --nogal: #8f6626; --nogal-soft: #f5ead2; --pethome: #4a5f9c; --pethome-soft: #e6eaf6; --scope-accent: var(--gold); }
+@media (prefers-color-scheme: dark) { :root:is([data-palette="clasico"], [data-palette="zafiro"], [data-palette="ciruela"], [data-palette="terracota"], [data-palette="grafito"]):not([data-theme="light"]) { --warning: #e6b866; --warning-soft: #2c2314; --bg: #0c110f; --surface: #141b18; --surface-muted: #1b2420; --fg: #f1ebdd; --fg-muted: #b0b6ad; --fg-subtle: #7c857e; --border: #27312c; --ring: #d9b56a; --primary: #d4ad62; --primary-hover: #e3c27a; --primary-fg: #17120a; --primary-soft: #2a2416; --gold: #d4ad62; --gold-strong: #e3c27a; --gold-soft: #2a2416; --positive: #7fcb9c; --positive-soft: #18291f; --negative: #ec8f84; --negative-soft: #2e1916; --info: #8fb6dd; --info-soft: #172330; --hero-a: #1a2621; --hero-b: #0a0f0d; --hero-fg: #f1ebdd; --fab-a: #e3c27a; --fab-b: #b8893b; --fab-fg: #17120a; --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4); --shadow-pop: 0 18px 40px rgb(0 0 0 / 0.6); --puntazo: #f09a80; --puntazo-soft: #2f1c16; --nogal: #e3c27a; --nogal-soft: #2a2416; --pethome: #9fb2e8; --pethome-soft: #1b2133; } }
+:root:is([data-palette="clasico"], [data-palette="zafiro"], [data-palette="ciruela"], [data-palette="terracota"], [data-palette="grafito"])[data-theme="dark"] { --warning: #e6b866; --warning-soft: #2c2314; --bg: #0c110f; --surface: #141b18; --surface-muted: #1b2420; --fg: #f1ebdd; --fg-muted: #b0b6ad; --fg-subtle: #7c857e; --border: #27312c; --ring: #d9b56a; --primary: #d4ad62; --primary-hover: #e3c27a; --primary-fg: #17120a; --primary-soft: #2a2416; --gold: #d4ad62; --gold-strong: #e3c27a; --gold-soft: #2a2416; --positive: #7fcb9c; --positive-soft: #18291f; --negative: #ec8f84; --negative-soft: #2e1916; --info: #8fb6dd; --info-soft: #172330; --hero-a: #1a2621; --hero-b: #0a0f0d; --hero-fg: #f1ebdd; --fab-a: #e3c27a; --fab-b: #b8893b; --fab-fg: #17120a; --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4); --shadow-pop: 0 18px 40px rgb(0 0 0 / 0.6); --puntazo: #f09a80; --puntazo-soft: #2f1c16; --nogal: #e3c27a; --nogal-soft: #2a2416; --pethome: #9fb2e8; --pethome-soft: #1b2133; }
 /* Colecciones de color. La clara se aplica con data-palette; la oscura añade :not([data-theme="light"]). */
 :root[data-palette="zafiro"] { --bg: #f3f4f7; --surface: #fdfdfe; --surface-muted: #e9edf3; --border: #dde2ea; --primary: #1d3a5f; --primary-hover: #142a46; --primary-soft: #e2e9f3; --gold: #a8844e; --gold-strong: #85663a; --gold-soft: #f2ead9; --ring: #a8844e; --hero-a: #1f416b; --hero-b: #0b1729; --hero-accent: #e6cf9f; --hero-accent-2: #f2e2c0; --splash-a: #24497a; --fab-a: #2a5280; --fab-b: #142a46; --fab-fg: #f2e2c0; }
 @media (prefers-color-scheme: dark) { :root[data-palette="zafiro"]:not([data-theme="light"]) { --bg: #0a0e15; --surface: #121925; --surface-muted: #19212f; --border: #263042; --primary: #e0c690; --primary-hover: #ecd6a8; --primary-soft: #2a2619; --gold: #e0c690; --gold-strong: #ecd6a8; --gold-soft: #2a2619; --ring: #e0c690; --hero-a: #18263a; --hero-b: #080c13; --fab-a: #ecd6a8; --fab-b: #b9975e; --fab-fg: #17120a; --splash-a: var(--hero-a); } }
@@ -1136,3 +1143,46 @@ body.discreet .ale-card b { filter: blur(7px); }
 .th-wait { display: grid; gap: 2px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 14px; background: var(--gold-soft, #f2ead9); border: 1px dashed color-mix(in srgb, var(--gold) 55%, transparent); }
 .th-wait b { font-family: var(--font-display); font-size: 22px; }
 .th-wait small { color: var(--fg-muted); }
+
+/* ===================== Diseño 3.5 "Esmeralda" ===================== */
+/* Blanco limpio, bloques en azul marino y verde esmeralda para las acciones.
+   Solo aplica a la colección por defecto; "Nogal clásico" y las demás quedan como estaban. */
+:root[data-palette="nogal"] :is(h1, .page-head h1, .greet h1, .ch-id h1) { font-weight: 800; letter-spacing: -0.02em; }
+:root[data-palette="nogal"] :is(h2, .modal-head h2, .card-title, .brand b, .acard h3, .empty strong, .lk-top b, #splash .sp b) { font-weight: 700; }
+:root[data-palette="nogal"] :is(.stat-value, .hero-amount, .ring .ring-txt b, .ch-kpis b) { font-weight: 800; letter-spacing: -0.02em; }
+:root[data-palette="nogal"] .eyebrow { letter-spacing: 0.06em; }
+:root[data-palette="nogal"] #ambient { display: none; }
+:root[data-palette="nogal"] .topbar { background: color-mix(in srgb, var(--surface) 94%, transparent); }
+:root[data-palette="nogal"] :is(.panel, .stat, .card, .goal-card, .menu-tile, .quick-tile, .line-row) { border: 1px solid var(--border); }
+
+/* Tarjeta destacada: azul marino con un brillo verde suave */
+:root[data-palette="nogal"] .hero { border: 0; background: radial-gradient(90% 120% at 100% 0%, rgb(16 185 129 / 0.20), transparent 55%), linear-gradient(160deg, var(--hero-a), var(--hero-b)); box-shadow: 0 12px 28px rgb(15 23 42 / 0.18); }
+:root[data-palette="nogal"] .hero::after { display: none; }
+:root[data-palette="nogal"] .hero-label { color: #cbd5e1; letter-spacing: 0.02em; text-transform: none; font-weight: 600; font-size: 13px; }
+:root[data-palette="nogal"] :is(.hero-sub, .ring .ring-txt small) { color: #cbd5e1; }
+:root[data-palette="nogal"] .hero-sub b { color: #ffffff; }
+:root[data-palette="nogal"] .hero-chip { background: rgb(16 185 129 / 0.16); color: #6ee7b7; border-color: rgb(16 185 129 / 0.35); }
+:root[data-palette="nogal"] .ring .track { stroke: rgb(255 255 255 / 0.14); }
+
+/* Botones y menú */
+:root[data-palette="nogal"] .btn { border-radius: 12px; font-weight: 700; }
+:root[data-palette="nogal"] .btn-primary { box-shadow: none; }
+:root[data-palette="nogal"] .btn-gold { background: var(--primary); color: var(--primary-fg); }
+:root[data-palette="nogal"] .fab { background: var(--primary); color: var(--primary-fg); border-radius: 18px; box-shadow: 0 10px 24px rgb(4 120 87 / 0.32); }
+:root[data-palette="nogal"] .fab-menu button .ico { color: var(--primary); }
+:root[data-palette="nogal"] .scope [data-scope="nogal"] .dot { background: var(--nogal); }
+:root[data-palette="nogal"] .scope [data-scope="todas"] .dot { background: linear-gradient(90deg, var(--puntazo) 50%, var(--nogal) 50%); }
+:root[data-palette="nogal"] .ripple { background: radial-gradient(circle, rgb(16 185 129 / 0.35), transparent 70%); }
+
+/* Bienvenida y bloqueo en azul marino */
+:root[data-palette="nogal"] #splash { color: #ffffff; background: radial-gradient(70% 45% at 50% 55%, rgb(16 185 129 / 0.20), transparent 70%), var(--hero-a); }
+:root[data-palette="nogal"] #splash .sp small { color: #6ee7b7; }
+:root[data-palette="nogal"] #lock { background: radial-gradient(70% 45% at 50% 30%, rgb(16 185 129 / 0.18), transparent 65%), linear-gradient(160deg, var(--hero-a), var(--hero-b)); }
+
+/* Inicio: saludo en un bloque azul marino, como el boceto */
+:root[data-palette="nogal"] .page-head.greet { margin: -16px -16px 16px; padding: 22px 18px 24px; background: radial-gradient(80% 140% at 100% 0%, rgb(16 185 129 / 0.18), transparent 60%), var(--hero-a); color: #ffffff; border-radius: 0 0 24px 24px; }
+:root[data-palette="nogal"] .page-head.greet h1 { color: #ffffff; }
+:root[data-palette="nogal"] .page-head.greet p { color: #cbd5e1; }
+:root[data-palette="nogal"] .page-head.greet .eyebrow { color: #6ee7b7; }
+:root[data-palette="nogal"] .page-head.greet .name-link { color: #6ee7b7; }
+@media (min-width: 900px) { :root[data-palette="nogal"] .page-head.greet { margin: 0 0 16px; border-radius: 24px; } }
