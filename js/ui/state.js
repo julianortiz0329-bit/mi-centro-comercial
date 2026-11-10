@@ -23,8 +23,7 @@ export const HOME_SECTIONS = {
 };
 export const DEFAULT_HOME = Object.keys(HOME_SECTIONS);
 export const PALETTES = {
-  nogal: { label: 'Esmeralda', hint: 'Blanco, azul marino y verde', swatch: ['#0f172a', '#10b981'] },
-  clasico: { label: 'Nogal clásico', hint: 'Verde bosque y oro', swatch: ['#1f4d3e', '#b8893b'] },
+  nogal: { label: 'Nogal', hint: 'Verde bosque y oro', swatch: ['#1f4d3e', '#b8893b'] },
   zafiro: { label: 'Zafiro', hint: 'Azul noche y champaña', swatch: ['#1d3a5f', '#c9a96e'] },
   ciruela: { label: 'Ciruela', hint: 'Berenjena y oro rosa', swatch: ['#5b2a4e', '#c8906b'] },
   terracota: { label: 'Terracota', hint: 'Arcilla y miel', swatch: ['#9c3f2a', '#c58b3f'] },
