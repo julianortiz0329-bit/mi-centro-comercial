@@ -12,13 +12,13 @@ import { COMMISSION_STATUSES } from '../domain/schema.js';
 const W = 595.28;
 const H = 841.89;
 const M = 40;
-const INK = '#1e293b';
+const INK = '#0f172a';
 const MUTED = '#64748b';
-const BRAND = '#1f4d3e';
-const GOLD = '#b8893b';
-const IVORY = '#f6efdd';
-const LINE = '#e2d9c5';
-const SOFT = '#f4efe3';
+const BRAND = '#0f172a';
+const ACCENT = '#10b981';
+const IVORY = '#ffffff';
+const LINE = '#e2e8f0';
+const SOFT = '#f1f5f9';
 const money = formatCOP;
 const num = (v) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(v);
 
@@ -26,9 +26,9 @@ function header(pdf, s, companyId, title, rightLines) {
   const pf = s.settings.companyProfiles?.[companyId] || {};
   const co = s.companies[companyId];
   const bandH = 104;
-  // Franja de marca: verde bosque con filete dorado.
+  // Franja de marca: azul marino con filete verde esmeralda (diseño 3.5).
   pdf.rect(0, 0, W, bandH, { fill: BRAND });
-  pdf.rect(0, bandH, W, 3, { fill: GOLD });
+  pdf.rect(0, bandH, W, 3, { fill: ACCENT });
   let x = M;
   if (pf.logo?.dataUrl) {
     const maxH = 58;
@@ -42,9 +42,9 @@ function header(pdf, s, companyId, title, rightLines) {
   }
   pdf.text(pf.legalName || co.name, x, 44, { size: 16, bold: true, color: IVORY });
   const info = [pf.nit ? `NIT ${pf.nit}` : '', [pf.address, pf.city].filter(Boolean).join(' · '), [pf.phone, pf.email].filter(Boolean).join(' · ')].filter(Boolean);
-  info.forEach((t, i) => pdf.text(t, x, 60 + i * 12, { size: 8.5, color: '#d9d2bf' }));
-  pdf.text(title, W - M, 44, { size: 15, bold: true, color: '#e3c27a', align: 'right' });
-  rightLines.forEach((t, i) => pdf.text(t, W - M, 60 + i * 12, { size: 8.5, color: '#d9d2bf', align: 'right' }));
+  info.forEach((t, i) => pdf.text(t, x, 60 + i * 12, { size: 8.5, color: '#cbd5e1' }));
+  pdf.text(title, W - M, 44, { size: 15, bold: true, color: '#6ee7b7', align: 'right' });
+  rightLines.forEach((t, i) => pdf.text(t, W - M, 60 + i * 12, { size: 8.5, color: '#cbd5e1', align: 'right' }));
   return bandH + 24;
 }
 
@@ -52,7 +52,7 @@ function footers(pdf, s, companyId, label) {
   const n = pdf.pages.length;
   pdf.pages.forEach((_, i) => {
     pdf.page = pdf.pages[i];
-    pdf.line(M, H - 34, W - M, H - 34, { color: GOLD, width: 0.8 });
+    pdf.line(M, H - 34, W - M, H - 34, { color: ACCENT, width: 0.8 });
     pdf.text(`${s.companies[companyId].name} · ${label}`, M, H - 22, { size: 8, color: MUTED });
     pdf.text(`Página ${i + 1} de ${n}`, W - M, H - 22, { size: 8, color: MUTED, align: 'right' });
   });
@@ -160,8 +160,8 @@ export function documentPdf(s, doc) {
   });
   y += tot.length * 14 + 6;
   pdf.rect(tx - 8, y, W - M - tx + 8, 26, { fill: BRAND });
-  pdf.rect(tx - 8, y + 26, W - M - tx + 8, 2, { fill: GOLD });
-  pdf.text('TOTAL', tx, y + 17, { size: 11, bold: true, color: '#e3c27a' });
+  pdf.rect(tx - 8, y + 26, W - M - tx + 8, 2, { fill: ACCENT });
+  pdf.text('TOTAL', tx, y + 17, { size: 11, bold: true, color: '#6ee7b7' });
   pdf.text(money(doc.totals.total), W - M - 6, y + 17, { size: 13, bold: true, color: IVORY, align: 'right' });
   y += 40;
 

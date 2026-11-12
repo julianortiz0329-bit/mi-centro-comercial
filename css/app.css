@@ -2,6 +2,8 @@
 /* Identidad "Nogal premium": verde bosque, dorado y marfil. Modo oscuro de
    lujo (casi negro con dorado). Los componentes solo usan estos tokens. */
 @font-face { font-family: 'Fraunces'; font-style: normal; font-weight: 500 700; font-display: swap; src: url('../fonts/fraunces-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Bodoni Moda'; font-style: normal; font-weight: 500 700; font-display: swap; src: url('../fonts/bodoni-moda-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Geist'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('../fonts/geist-latin.woff2') format('woff2'); }
 @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('../fonts/inter-latin.woff2') format('woff2'); }
 /* Identidad 3.5 "Esmeralda": blanco, azul marino y verde esmeralda, letra Inter.
    La identidad anterior queda como la colección "Nogal clásico" (data-palette="clasico"). */
@@ -297,7 +299,7 @@ td input[type=checkbox], th input[type=checkbox] { width: 20px; height: 20px; }
 
 /* Formularios */
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgb(15 23 42 / 0.5); display: flex; align-items: flex-end; justify-content: center; }
-.modal { background: var(--surface); width: 100%; max-height: 94vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+:is(.modal, .sheet-out) { background: var(--surface); width: 100%; max-height: 94vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
 .modal-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .modal-head h2 { font-size: 18px; margin: 0; }
 .modal-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
@@ -394,8 +396,8 @@ legend { font-weight: 700; font-size: 13px; padding: 0 4px; }
   .cards { grid-template-columns: 1fr 1fr; }
   .goal-grid, .menu-grid, .export-grid { grid-template-columns: 1fr 1fr; }
   .modal-backdrop { align-items: center; padding: 20px; }
-  .modal { border-radius: 20px; max-width: 560px; }
-  .modal.wide { max-width: 860px; }
+  :is(.modal, .sheet-out) { border-radius: 20px; max-width: 560px; }
+  :is(.modal, .sheet-out).wide { max-width: 860px; }
   .line-row { grid-template-columns: 1.4fr 1fr 1fr 0.7fr 0.7fr; align-items: end; padding-right: 50px; }
   .line-row .lr-desc { grid-column: 1 / -1; padding-right: 0; }
   .line-row .lr-qty { grid-column: auto; }
@@ -579,9 +581,9 @@ h2 { font-weight: 600; letter-spacing: -0.01em; font-size: 17px; }
 .main.enter > *:nth-child(4) { animation-delay: .09s; }
 .main.enter > *:nth-child(n+5) { animation-delay: .12s; }
 .modal-backdrop { animation: fadeIn .2s ease both; backdrop-filter: blur(3px); }
-.modal { animation: sheetUp .32s cubic-bezier(.2, .8, .2, 1) both; background: var(--surface); }
+:is(.modal, .sheet-out) { animation: sheetUp .32s cubic-bezier(.2, .8, .2, 1) both; background: var(--surface); }
 .grabber { display: block; width: 44px; height: 5px; border-radius: 99px; background: var(--border); margin: -6px auto 10px; }
-@media (min-width: 640px) { .grabber { display: none; } .modal { animation: rise .28s cubic-bezier(.2, .8, .2, 1) both; } }
+@media (min-width: 640px) { .grabber { display: none; } :is(.modal, .sheet-out) { animation: rise .28s cubic-bezier(.2, .8, .2, 1) both; } }
 .bar span { transition: width 1s cubic-bezier(.2, .8, .2, 1); }
 
 /* Celebración */
@@ -620,7 +622,7 @@ body.discreet :is(.stat-value, .hero-amount, .hero-sub b, .price-row b, .totals 
 @media (prefers-color-scheme: dark) { :root[data-palette="grafito"]:not([data-theme="light"]) { --bg: #0b0b0c; --surface: #151517; --surface-muted: #1d1d20; --border: #2b2b2f; --hero-a: #1f2023; --hero-b: #070708; --primary: #d4ad62; --primary-hover: #e3c27a; --primary-soft: #2a2416; --gold: #d4ad62; --gold-strong: #e3c27a; --gold-soft: #2a2416; --ring: #d9b56a; --fab-a: #e3c27a; --fab-b: #b8893b; --fab-fg: #17120a; --splash-a: var(--hero-a); } }
 :root[data-palette="grafito"][data-theme="dark"] { --bg: #0b0b0c; --surface: #151517; --surface-muted: #1d1d20; --border: #2b2b2f; --hero-a: #1f2023; --hero-b: #070708; --primary: #d4ad62; --primary-hover: #e3c27a; --primary-soft: #2a2416; --gold: #d4ad62; --gold-strong: #e3c27a; --gold-soft: #2a2416; --ring: #d9b56a; --fab-a: #e3c27a; --fab-b: #b8893b; --fab-fg: #17120a; --splash-a: var(--hero-a); }
 
-:root[data-text="grande"] :is(.main, .modal, .fab-menu, #lock) { zoom: 1.12; }
+:root[data-text="grande"] :is(.main, :is(.modal, .sheet-out), .fab-menu, #lock) { zoom: 1.12; }
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 html.pre-lock .app { visibility: hidden; }
 .center { text-align: center; }
@@ -1146,43 +1148,180 @@ body.discreet .ale-card b { filter: blur(7px); }
 
 /* ===================== Diseño 3.5 "Esmeralda" ===================== */
 /* Blanco limpio, bloques en azul marino y verde esmeralda para las acciones.
-   Solo aplica a la colección por defecto; "Nogal clásico" y las demás quedan como estaban. */
-:root[data-palette="nogal"] :is(h1, .page-head h1, .greet h1, .ch-id h1) { font-weight: 800; letter-spacing: -0.02em; }
-:root[data-palette="nogal"] :is(h2, .modal-head h2, .card-title, .brand b, .acard h3, .empty strong, .lk-top b, #splash .sp b) { font-weight: 700; }
-:root[data-palette="nogal"] :is(.stat-value, .hero-amount, .ring .ring-txt b, .ch-kpis b) { font-weight: 800; letter-spacing: -0.02em; }
-:root[data-palette="nogal"] .eyebrow { letter-spacing: 0.06em; }
-:root[data-palette="nogal"] #ambient { display: none; }
-:root[data-palette="nogal"] .topbar { background: color-mix(in srgb, var(--surface) 94%, transparent); }
-:root[data-palette="nogal"] :is(.panel, .stat, .card, .goal-card, .menu-tile, .quick-tile, .line-row) { border: 1px solid var(--border); }
+   También es la base de "Tinta" (3.7); "Nogal clásico" y las demás quedan como estaban. */
+:root:is([data-palette="nogal"], [data-palette="tinta"]) :is(h1, .page-head h1, .greet h1, .ch-id h1) { font-weight: 800; letter-spacing: -0.02em; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) :is(h2, .modal-head h2, .card-title, .brand b, .acard h3, .empty strong, .lk-top b, #splash .sp b) { font-weight: 700; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) :is(.stat-value, .hero-amount, .ring .ring-txt b, .ch-kpis b) { font-weight: 800; letter-spacing: -0.02em; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .eyebrow { letter-spacing: 0.06em; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) #ambient { display: none; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .topbar { background: color-mix(in srgb, var(--surface) 94%, transparent); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) :is(.panel, .stat, .card, .goal-card, .menu-tile, .quick-tile, .line-row) { border: 1px solid var(--border); }
 
 /* Tarjeta destacada: azul marino con un brillo verde suave */
-:root[data-palette="nogal"] .hero { border: 0; background: radial-gradient(90% 120% at 100% 0%, rgb(16 185 129 / 0.20), transparent 55%), linear-gradient(160deg, var(--hero-a), var(--hero-b)); box-shadow: 0 12px 28px rgb(15 23 42 / 0.18); }
-:root[data-palette="nogal"] .hero::after { display: none; }
-:root[data-palette="nogal"] .hero-label { color: #cbd5e1; letter-spacing: 0.02em; text-transform: none; font-weight: 600; font-size: 13px; }
-:root[data-palette="nogal"] :is(.hero-sub, .ring .ring-txt small) { color: #cbd5e1; }
-:root[data-palette="nogal"] .hero-sub b { color: #ffffff; }
-:root[data-palette="nogal"] .hero-chip { background: rgb(16 185 129 / 0.16); color: #6ee7b7; border-color: rgb(16 185 129 / 0.35); }
-:root[data-palette="nogal"] .ring .track { stroke: rgb(255 255 255 / 0.14); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .hero { border: 0; background: radial-gradient(90% 120% at 100% 0%, rgb(16 185 129 / 0.20), transparent 55%), linear-gradient(160deg, var(--hero-a), var(--hero-b)); box-shadow: 0 12px 28px rgb(15 23 42 / 0.18); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .hero::after { display: none; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .hero-label { color: #cbd5e1; letter-spacing: 0.02em; text-transform: none; font-weight: 600; font-size: 13px; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) :is(.hero-sub, .ring .ring-txt small) { color: #cbd5e1; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .hero-sub b { color: #ffffff; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .hero-chip { background: rgb(16 185 129 / 0.16); color: #6ee7b7; border-color: rgb(16 185 129 / 0.35); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .ring .track { stroke: rgb(255 255 255 / 0.14); }
 
 /* Botones y menú */
-:root[data-palette="nogal"] .btn { border-radius: 12px; font-weight: 700; }
-:root[data-palette="nogal"] .btn-primary { box-shadow: none; }
-:root[data-palette="nogal"] .btn-gold { background: var(--primary); color: var(--primary-fg); }
-:root[data-palette="nogal"] .fab { background: var(--primary); color: var(--primary-fg); border-radius: 18px; box-shadow: 0 10px 24px rgb(4 120 87 / 0.32); }
-:root[data-palette="nogal"] .fab-menu button .ico { color: var(--primary); }
-:root[data-palette="nogal"] .scope [data-scope="nogal"] .dot { background: var(--nogal); }
-:root[data-palette="nogal"] .scope [data-scope="todas"] .dot { background: linear-gradient(90deg, var(--puntazo) 50%, var(--nogal) 50%); }
-:root[data-palette="nogal"] .ripple { background: radial-gradient(circle, rgb(16 185 129 / 0.35), transparent 70%); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .btn { border-radius: 12px; font-weight: 700; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .btn-primary { box-shadow: none; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .btn-gold { background: var(--primary); color: var(--primary-fg); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .fab { background: var(--primary); color: var(--primary-fg); border-radius: 18px; box-shadow: 0 10px 24px rgb(4 120 87 / 0.32); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .fab-menu button .ico { color: var(--primary); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .scope [data-scope="nogal"] .dot { background: var(--nogal); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .scope [data-scope="todas"] .dot { background: linear-gradient(90deg, var(--puntazo) 50%, var(--nogal) 50%); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .ripple { background: radial-gradient(circle, rgb(16 185 129 / 0.35), transparent 70%); }
 
 /* Bienvenida y bloqueo en azul marino */
-:root[data-palette="nogal"] #splash { color: #ffffff; background: radial-gradient(70% 45% at 50% 55%, rgb(16 185 129 / 0.20), transparent 70%), var(--hero-a); }
-:root[data-palette="nogal"] #splash .sp small { color: #6ee7b7; }
-:root[data-palette="nogal"] #lock { background: radial-gradient(70% 45% at 50% 30%, rgb(16 185 129 / 0.18), transparent 65%), linear-gradient(160deg, var(--hero-a), var(--hero-b)); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) #splash { color: #ffffff; background: radial-gradient(70% 45% at 50% 55%, rgb(16 185 129 / 0.20), transparent 70%), var(--hero-a); }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) #splash .sp small { color: #6ee7b7; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) #lock { background: radial-gradient(70% 45% at 50% 30%, rgb(16 185 129 / 0.18), transparent 65%), linear-gradient(160deg, var(--hero-a), var(--hero-b)); }
 
 /* Inicio: saludo en un bloque azul marino, como el boceto */
-:root[data-palette="nogal"] .page-head.greet { margin: -16px -16px 16px; padding: 22px 18px 24px; background: radial-gradient(80% 140% at 100% 0%, rgb(16 185 129 / 0.18), transparent 60%), var(--hero-a); color: #ffffff; border-radius: 0 0 24px 24px; }
-:root[data-palette="nogal"] .page-head.greet h1 { color: #ffffff; }
-:root[data-palette="nogal"] .page-head.greet p { color: #cbd5e1; }
-:root[data-palette="nogal"] .page-head.greet .eyebrow { color: #6ee7b7; }
-:root[data-palette="nogal"] .page-head.greet .name-link { color: #6ee7b7; }
-@media (min-width: 900px) { :root[data-palette="nogal"] .page-head.greet { margin: 0 0 16px; border-radius: 24px; } }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .page-head.greet { margin: -16px -16px 16px; padding: 22px 18px 24px; background: radial-gradient(80% 140% at 100% 0%, rgb(16 185 129 / 0.18), transparent 60%), var(--hero-a); color: #ffffff; border-radius: 0 0 24px 24px; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .page-head.greet h1 { color: #ffffff; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .page-head.greet p { color: #cbd5e1; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .page-head.greet .eyebrow { color: #6ee7b7; }
+:root:is([data-palette="nogal"], [data-palette="tinta"]) .page-head.greet .name-link { color: #6ee7b7; }
+@media (min-width: 900px) { :root:is([data-palette="nogal"], [data-palette="tinta"]) .page-head.greet { margin: 0 0 16px; border-radius: 24px; } }
+
+/* ===================== Movimiento fluido (3.6) ===================== */
+/* Hojas con resorte: la capa oscura sigue lo abierta que está la hoja. */
+.modal-backdrop.sheet-driven { animation: none; background: rgb(15 23 42 / calc(0.5 * var(--sheet-open, 1))); backdrop-filter: blur(calc(3px * var(--sheet-open, 1))); -webkit-backdrop-filter: blur(calc(3px * var(--sheet-open, 1))); }
+.modal-backdrop.leaving { z-index: 49; pointer-events: none; }
+.sheet-driven :is(.modal, .sheet-out) { will-change: transform; }
+.grabber { position: relative; }
+.grabber::before { content: ''; position: absolute; inset: -14px -60px; } /* área de agarre de 44 px sin cambiar el diseño */
+
+/* Respuesta inmediata al tocar: sin la espera de doble toque del navegador. */
+button, a, [data-act], .chip, .client-card { touch-action: manipulation; }
+:is(.btn, .chip, .quick-tile, .icon-toggle, .fab):active { transition-duration: .1s; }
+
+/* El menú del + nace del botón del centro. */
+@media (max-width: 899px) { .fab-menu button { transform-origin: center bottom; } }
+
+/* Letra: más apretada en lo grande, un poco más abierta en lo pequeño. */
+.small, small, .stat-label, .k { letter-spacing: 0.005em; }
+.hero-amount, .stat-value { letter-spacing: -0.025em; }
+
+/* Accesibilidad: menos transparencia y más contraste si el celular lo pide. */
+@media (prefers-reduced-transparency: reduce) {
+  .tab-bar, .topbar, .press-menu, .modal-backdrop { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  .tab-bar, .topbar { background: var(--surface) !important; }
+}
+@media (prefers-contrast: more) {
+  .tab-bar, .topbar { background: var(--surface) !important; border-color: var(--fg-muted) !important; }
+  :is(.panel, .stat, .card) { border-color: var(--fg-subtle); }
+}
+
+/* ===================== Diseño 3.7 "Tinta" (estilo del casillero) ===================== */
+/* Fondo hueso, tarjetas blancas con borde fino, negro tinta para las acciones,
+   títulos en Bodoni Moda y números en Geist. El color queda para los estados
+   (etiquetas suaves en azul, ámbar, verde azulado y rojo), nunca de adorno. */
+:root[data-palette="tinta"] {
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Bodoni Moda', Georgia, 'Times New Roman', serif;
+  --font-display: var(--font-sans);
+  --radius: 18px;
+  --bg: #f5f5f3; --surface: #ffffff; --surface-muted: #efefec; --fg: #111111; --fg-muted: #575757; --fg-subtle: #8a8a85; --border: #e4e4e1;
+  --ring: #111111; --primary: #111111; --primary-hover: #2b2b2b; --primary-fg: #ffffff; --primary-soft: #ededea;
+  --gold: #111111; --gold-strong: #111111; --gold-soft: #ededea;
+  --positive: #0b6a5a; --positive-soft: #dcf1eb; --negative: #b42318; --negative-soft: #fbe4e1;
+  --warning: #7d5300; --warning-soft: #fbf0d3; --info: #1d5bb0; --info-soft: #dfeafb;
+  --violet: #6338b5; --violet-soft: #ece4fa;
+  --hero-a: #0b0b0b; --hero-b: #0b0b0b; --hero-fg: #ffffff; --hero-accent: #ffffff; --hero-accent-2: #ffffff;
+  --splash-a: #0b0b0b; --fab-a: #111111; --fab-b: #111111; --fab-fg: #ffffff;
+  --shadow-card: none; --shadow-pop: 0 18px 44px rgb(0 0 0 / 0.16);
+  --puntazo: #c8372d; --puntazo-soft: #fbe4e1; --nogal: #8b5a2b; --nogal-soft: #f3e9dc;
+  --pethome: #1d5bb0; --pethome-soft: #dfeafb;
+}
+@media (prefers-color-scheme: dark) { :root[data-palette="tinta"]:not([data-theme="light"]) { --bg: #0e0e0d; --surface: #181817; --surface-muted: #20201f; --fg: #f2f2ef; --fg-muted: #a6a6a0; --fg-subtle: #77776f; --border: #2a2a28; --ring: #f2f2ef; --primary: #f2f2ef; --primary-hover: #ffffff; --primary-fg: #111111; --primary-soft: #262624; --gold: #f2f2ef; --gold-strong: #f2f2ef; --gold-soft: #262624; --positive: #7dd3bc; --positive-soft: #10302a; --negative: #f49b91; --negative-soft: #3a1a17; --warning: #f0c46a; --warning-soft: #33270f; --info: #9cc0f5; --info-soft: #15253d; --violet: #c4adf2; --violet-soft: #271d3d; --hero-a: #1d1d1b; --hero-b: #1d1d1b; --splash-a: #0e0e0d; --fab-a: #f2f2ef; --fab-b: #f2f2ef; --fab-fg: #111111; --shadow-pop: 0 18px 44px rgb(0 0 0 / 0.6); --puntazo: #f49b91; --puntazo-soft: #3a1a17; --nogal: #d6a76f; --nogal-soft: #33261a; --pethome: #9cc0f5; --pethome-soft: #15253d; } }
+:root[data-palette="tinta"][data-theme="dark"] { --bg: #0e0e0d; --surface: #181817; --surface-muted: #20201f; --fg: #f2f2ef; --fg-muted: #a6a6a0; --fg-subtle: #77776f; --border: #2a2a28; --ring: #f2f2ef; --primary: #f2f2ef; --primary-hover: #ffffff; --primary-fg: #111111; --primary-soft: #262624; --gold: #f2f2ef; --gold-strong: #f2f2ef; --gold-soft: #262624; --positive: #7dd3bc; --positive-soft: #10302a; --negative: #f49b91; --negative-soft: #3a1a17; --warning: #f0c46a; --warning-soft: #33270f; --info: #9cc0f5; --info-soft: #15253d; --violet: #c4adf2; --violet-soft: #271d3d; --hero-a: #1d1d1b; --hero-b: #1d1d1b; --splash-a: #0e0e0d; --fab-a: #f2f2ef; --fab-b: #f2f2ef; --fab-fg: #111111; --shadow-pop: 0 18px 44px rgb(0 0 0 / 0.6); --puntazo: #f49b91; --puntazo-soft: #3a1a17; --nogal: #d6a76f; --nogal-soft: #33261a; --pethome: #9cc0f5; --pethome-soft: #15253d; }
+
+/* Letra: Bodoni solo en los títulos grandes; todo lo demás en Geist. */
+:root[data-palette="tinta"] body { font-feature-settings: 'ss01'; }
+:root[data-palette="tinta"] :is(.page-head h1, .ch-id h1, .modal-head h2, .brand b, #splash .sp b, .lk-top b, .empty strong, .celebrate .msg b) { font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.01em; }
+:root[data-palette="tinta"] .page-head h1 { font-size: 30px; line-height: 1.08; }
+:root[data-palette="tinta"] :is(h2, .card-title, .acard h3) { font-family: var(--font-sans); font-weight: 600; letter-spacing: -0.01em; }
+:root[data-palette="tinta"] h2 { font-size: 16px; }
+:root[data-palette="tinta"] :is(.stat-value, .hero-amount, .ring .ring-txt b, .ch-kpis b, .th-row b, .goal-line b, .totals .grand b) { font-family: var(--font-sans); font-weight: 650; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+:root[data-palette="tinta"] .stat-value { font-size: clamp(18px, 5.4vw, 23px); overflow-wrap: normal; white-space: nowrap; }
+/* La tarjeta negra queda plana: el brillo holográfico apenas se insinúa. */
+:root[data-palette="tinta"] .hero .sheen { background: linear-gradient(115deg, transparent 32%, rgb(255 255 255 / .06) 46%, transparent 60%); background-size: 260% 100%; background-position: var(--mx) 0; }
+:root[data-palette="tinta"] .hero .deco { display: none; }
+:root[data-palette="tinta"] .eyebrow { color: var(--fg-muted); font-weight: 600; letter-spacing: 0.06em; }
+:root[data-palette="tinta"] .stat-label { font-size: 13px; font-weight: 500; color: var(--fg-muted); }
+
+/* Superficies: blancas, borde fino, sin sombra. */
+:root[data-palette="tinta"] :is(.panel, .stat, .card, .goal-card, .menu-tile, .quick-tile, .line-row, .acard, .client-card) { border: 1px solid var(--border); box-shadow: none; border-radius: var(--radius); }
+:root[data-palette="tinta"] .notice { border-radius: 14px; }
+
+/* Encabezado de Inicio: título en Bodoni sobre el fondo, como el panel del casillero. */
+:root[data-palette="tinta"] .page-head.greet { margin: 0 0 14px; padding: 4px 2px 0; background: none; color: var(--fg); border-radius: 0; }
+:root[data-palette="tinta"] .page-head.greet h1 { color: var(--fg); font-size: 32px; }
+:root[data-palette="tinta"] .page-head.greet p { color: var(--fg-muted); }
+:root[data-palette="tinta"] .page-head.greet .eyebrow { color: var(--fg-muted); }
+:root[data-palette="tinta"] .page-head.greet .name-link { color: var(--fg); }
+
+/* Tarjeta de comisión: negra y plana, con fichas translúcidas. */
+:root[data-palette="tinta"] .hero { background: var(--hero-a); border: 1px solid color-mix(in srgb, #ffffff 6%, transparent); border-radius: 22px; box-shadow: none; }
+:root[data-palette="tinta"] .hero-label { color: #bdbdbd; font-weight: 500; font-size: 14px; }
+:root[data-palette="tinta"] :is(.hero-sub, .ring .ring-txt small) { color: #bdbdbd; }
+:root[data-palette="tinta"] .hero-chip { background: rgb(255 255 255 / 0.14); color: #ffffff; border: 0; border-radius: 12px; padding: 7px 12px; font-weight: 600; }
+:root[data-palette="tinta"] .ring .bar { stroke: #ffffff; }
+:root[data-palette="tinta"] .ring .track { stroke: rgb(255 255 255 / 0.14); }
+:root[data-palette="tinta"] .hero .btn-plain { background: rgb(255 255 255 / 0.12); border-color: transparent; color: #ffffff; }
+
+/* Lo importante hoy: sin franja lateral; el color vive en la etiqueta. */
+:root[data-palette="tinta"] .acard::before { display: none; }
+:root[data-palette="tinta"] .acard.t-violet { --t: var(--violet); --ts: var(--violet-soft); }
+:root[data-palette="tinta"] .acard.t-gold { --t: #ffffff; background: var(--hero-a); border-color: transparent; }
+:root[data-palette="tinta"] .acard.t-gold .ac-ico { background: rgb(255 255 255 / 0.14); }
+:root[data-palette="tinta"] .ac-top small { display: inline-flex; padding: 3px 10px; border-radius: 999px; background: var(--ts); letter-spacing: 0.02em; text-transform: none; font-size: 12px; font-weight: 600; }
+:root[data-palette="tinta"] .acard.t-gold .ac-top small { background: rgb(255 255 255 / 0.14); color: #ffffff; }
+
+/* Etiquetas de estado: pastillas suaves y legibles. */
+:root[data-palette="tinta"] .pill { font-size: 12px; font-weight: 600; padding: 3px 10px; }
+
+/* Botones: negro tinta, esquinas de 12 px. */
+:root[data-palette="tinta"] .btn { border-radius: 12px; font-weight: 600; }
+:root[data-palette="tinta"] .btn-secondary { background: var(--surface-muted); color: var(--fg); }
+:root[data-palette="tinta"] .btn-plain { background: var(--surface); border-color: var(--border); }
+:root[data-palette="tinta"] .chip.active { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); font-weight: 600; }
+:root[data-palette="tinta"] .icon-toggle { border-radius: 12px; color: var(--fg); }
+
+/* Menú inferior y botón +: pastilla negra para la sección activa. */
+:root[data-palette="tinta"] .tab-bar a.active { color: var(--primary-fg); }
+:root[data-palette="tinta"] .nav-pill { background: var(--primary); box-shadow: none; }
+:root[data-palette="tinta"] .sidebar nav a.active { background: var(--primary); color: var(--primary-fg); }
+:root[data-palette="tinta"] .fab { background: var(--fab-a); color: var(--fab-fg); box-shadow: 0 10px 24px rgb(0 0 0 / 0.22), 0 0 0 5px var(--bg); }
+@media (min-width: 960px) { :root[data-palette="tinta"] .fab { box-shadow: 0 10px 24px rgb(0 0 0 / 0.22); } }
+:root[data-palette="tinta"] .fab-menu button .ico { color: var(--fg); }
+:root[data-palette="tinta"] .ripple { background: radial-gradient(circle, rgb(0 0 0 / 0.12), transparent 70%); }
+:root[data-palette="tinta"][data-theme="dark"] .ripple { background: radial-gradient(circle, rgb(255 255 255 / 0.16), transparent 70%); }
+
+/* Selector de empresa: la activa en negro. */
+:root[data-palette="tinta"] .scope button { border-radius: 12px; font-weight: 600; }
+:root[data-palette="tinta"] .scope [data-scope="nogal"] .dot { background: var(--nogal); }
+:root[data-palette="tinta"] .scope [data-scope="todas"] .dot { background: linear-gradient(90deg, var(--puntazo) 50%, var(--nogal) 50%); }
+
+/* Bienvenida y bloqueo: negro con el nombre en Bodoni. */
+:root[data-palette="tinta"] #splash { background: var(--splash-a); color: #ffffff; }
+:root[data-palette="tinta"] #splash .sp small { color: #bdbdbd; }
+:root[data-palette="tinta"] #lock { background: #0b0b0b; }
+:root[data-palette="tinta"] .lk-pad button:active { background: rgb(255 255 255 / 0.22); }
+
+/* Monograma MC: blanco sobre negro, en Bodoni. */
+:root[data-palette="tinta"] { --mono-a: #ffffff; --mono-b: #cfcfca; --mono-font: 'Bodoni Moda', Georgia, serif; }
+:root[data-palette="tinta"] .monogram { box-shadow: none; }
+
+/* Respuesta al tocar (3.7): la tarjeta se hunde apenas al presionarla. */
+:root[data-palette="tinta"] :is(.client-card, .acard, .quick-tile, .menu-tile, .stat) { transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
+:root[data-palette="tinta"] :is(.client-card, .quick-tile, .menu-tile):active { transform: scale(0.985); transition-duration: .08s; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-palette="tinta"] :is(.quick-tile, .menu-tile, .client-card):hover { border-color: color-mix(in srgb, var(--fg) 22%, var(--border)); }
+}

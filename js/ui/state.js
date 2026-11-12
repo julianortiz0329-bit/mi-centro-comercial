@@ -23,7 +23,9 @@ export const HOME_SECTIONS = {
 };
 export const DEFAULT_HOME = Object.keys(HOME_SECTIONS);
 export const PALETTES = {
-  nogal: { label: 'Nogal', hint: 'Verde bosque y oro', swatch: ['#1f4d3e', '#b8893b'] },
+  tinta: { label: 'Tinta', hint: 'Hueso, negro y letra Bodoni', swatch: ['#111111', '#f5f5f3'] },
+  nogal: { label: 'Esmeralda', hint: 'Blanco, azul marino y verde', swatch: ['#0f172a', '#10b981'] },
+  clasico: { label: 'Nogal clásico', hint: 'Verde bosque y oro', swatch: ['#1f4d3e', '#b8893b'] },
   zafiro: { label: 'Zafiro', hint: 'Azul noche y champaña', swatch: ['#1d3a5f', '#c9a96e'] },
   ciruela: { label: 'Ciruela', hint: 'Berenjena y oro rosa', swatch: ['#5b2a4e', '#c8906b'] },
   terracota: { label: 'Terracota', hint: 'Arcilla y miel', swatch: ['#9c3f2a', '#c58b3f'] },
@@ -43,7 +45,8 @@ export const ui = {
   lastCrmScope: ['puntazo', 'nogal', 'todas'].includes(p0.lastCrmScope) ? p0.lastCrmScope : 'todas',
   privacy: !!p0.privacy,
   theme: ['auto', 'light', 'dark'].includes(p0.theme) ? p0.theme : 'auto',
-  palette: PALETTES[p0.palette] ? p0.palette : 'nogal',
+  // 3.7: quien tenía Esmeralda por defecto pasa una vez a Tinta; si la vuelve a elegir, se respeta.
+  palette: !PALETTES[p0.palette] || (p0.palette === 'nogal' && !p0.v37) ? 'tinta' : p0.palette,
   text: ['normal', 'grande'].includes(p0.text) ? p0.text : 'normal',
   motion: p0.motion !== false,
   haptics: p0.haptics !== false,
@@ -64,7 +67,7 @@ export function setScope(scope) {
 export function savePrefs() {
   try {
     const { scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock } = ui;
-    localStorage.setItem(PREF, JSON.stringify({ scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock }));
+    localStorage.setItem(PREF, JSON.stringify({ v37: true, scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock }));
     return true;
   } catch {
     return false; // preferencia opcional (p. ej. almacenamiento lleno)

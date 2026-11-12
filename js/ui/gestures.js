@@ -6,6 +6,7 @@ import { $, esc, haptic, HAPTIC } from './dom.js';
 import { icon } from './icons.js';
 import { clientAvatar } from './views-clients.js';
 import { navigate } from './state.js';
+import { rubberband, spring, velocityTracker } from './spring.js';
 
 const GO = 88; // px para disparar la acción al deslizar
 let suppressClick = false;
@@ -19,6 +20,8 @@ function eatNextClick() {
 /* ---------------- Tarjeta de cliente: deslizar y mantener presionado ---------------- */
 function bindClientCards(fire) {
   let g = null;
+  const vt = velocityTracker();
+  const moving = new WeakMap(); // tarjeta → resorte en curso (para poder agarrarla de nuevo)
   const reset = (card, under) => {
     card.style.transform = '';
     card.classList.remove('swiping', 'pressing');
@@ -27,12 +30,40 @@ function bindClientCards(fire) {
       under.className = 'swipe-under';
     }
   };
+  // Al soltar, la tarjeta vuelve con un resorte que sale a la velocidad del dedo.
+  const settle = (card, under, from, velocity) => {
+    card.classList.add('swiping');
+    const sp = spring({
+      from,
+      to: 0,
+      velocity,
+      damping: 0.8,
+      response: 0.32,
+      onUpdate: (x) => {
+        card.style.transform = x ? `translateX(${x}px)` : '';
+        if (under) under.style.opacity = String(Math.min(1, Math.abs(x) / 40));
+      },
+      onDone: () => {
+        moving.delete(card);
+        reset(card, under);
+      },
+    });
+    moving.set(card, sp);
+  };
   document.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const host = e.target.closest('.swipe-host');
     if (!host || e.target.closest('.card-actions')) return;
     const card = $('.client-card', host);
-    g = { host, card, under: $('.swipe-under', host), id: host.dataset.swipeClient, x: e.clientX, y: e.clientY, dx: 0, mode: null, go: false };
+    // Si la tarjeta todavía venía regresando, se agarra desde donde está.
+    const caught = moving.get(card);
+    const from = caught ? caught.value() : 0;
+    caught?.stop();
+    moving.delete(card);
+    g = { host, card, under: $('.swipe-under', host), id: host.dataset.swipeClient, x: e.clientX - from, y: e.clientY, dx: from, mode: caught ? 'swipe' : null, go: false };
+    vt.reset();
+    vt.add(from);
+    if (caught) card.classList.add('swiping');
     g.timer = setTimeout(() => {
       if (!g || g.mode) return;
       g.mode = 'press';
@@ -58,14 +89,16 @@ function bindClientCards(fire) {
         g.card.classList.add('swiping');
       } else return;
     }
+    // Sigue al dedo 1:1 y resiste cada vez más al pasar el borde (nunca un tope seco).
     // Hacia la derecha solo si el cliente tiene WhatsApp.
+    const limit = dx > 0 && !g.host.dataset.hasWa ? 0 : 130;
     let x = dx;
-    if (x > 0 && !g.host.dataset.hasWa) x = Math.min(x, 24);
-    x = Math.sign(x) * Math.min(Math.abs(x), 150) * (Math.abs(x) > GO ? 0.92 : 1);
+    if (Math.abs(x) > limit) x = Math.sign(x) * (limit + rubberband(Math.abs(x) - limit, limit ? 220 : 60));
     g.dx = x;
+    vt.add(x);
     g.card.style.transform = `translateX(${x}px)`;
     g.under.style.opacity = String(Math.min(1, Math.abs(x) / 40));
-    const go = Math.abs(x) >= GO;
+    const go = Math.abs(x) >= GO && (x < 0 || !!g.host.dataset.hasWa);
     g.under.className = `swipe-under ${x > 0 ? 'right' : 'left'}${go ? ' go' : ''}`;
     if (go !== g.go) {
       g.go = go;
@@ -75,12 +108,17 @@ function bindClientCards(fire) {
   const end = () => {
     if (!g) return;
     clearTimeout(g.timer);
-    const { mode, go, dx, id, card, under } = g;
+    const { mode, go, dx, id, card, under, host } = g;
     g = null;
     if (mode !== 'swipe') return;
     eatNextClick();
-    reset(card, under);
-    if (go) fire(dx > 0 ? 'wa' : 'pay', id);
+    // Cuenta la distancia o un gesto rápido en la misma dirección.
+    const v = vt.velocity();
+    const allowed = dx < 0 || host.dataset.hasWa;
+    const flick = Math.abs(v) > 650 && Math.abs(dx) > 32 && Math.sign(v) === Math.sign(dx) && allowed;
+    if (flick && !go) haptic(HAPTIC.tap);
+    settle(card, under, dx, v);
+    if (go || flick) fire(dx > 0 ? 'wa' : 'pay', id);
   };
   const cancel = () => {
     if (!g) return;

@@ -55,7 +55,7 @@ export function icon(name, { size = 20, cls = '' } = {}) {
 let mgSeq = 0;
 export function monogram(size = 36) {
   const id = `mg${++mgSeq}`; // id único: varios monogramas en la misma página
-  return `<svg class="monogram" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--hero-accent,#e3c27a)"/><stop offset="1" style="stop-color:var(--gold,#b8893b)"/></linearGradient></defs><rect width="64" height="64" rx="16" style="fill:var(--hero-a,#1f4d3e)"/><rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="url(#${id})" stroke-opacity=".55"/><text x="32" y="42" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-weight="700" font-size="27" fill="url(#${id})">MC</text></svg>`;
+  return `<svg class="monogram" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--mono-a,var(--hero-accent,#e3c27a))"/><stop offset="1" style="stop-color:var(--mono-b,var(--gold,#b8893b))"/></linearGradient></defs><rect width="64" height="64" rx="16" style="fill:var(--hero-a,#1f4d3e)"/><rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="url(#${id})" stroke-opacity=".55"/><text x="32" y="42" text-anchor="middle" style="font-family:var(--mono-font,Fraunces,Georgia,serif)" font-weight="700" font-size="27" fill="url(#${id})">MC</text></svg>`;
 }
 
 /** Ilustración para estados vacíos (hojas de nogal y una nuez). */

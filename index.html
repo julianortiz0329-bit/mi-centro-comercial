@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f6f2e8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0c110f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f5f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)">
 <meta name="description" content="CRM comercial de El Puntazo y Frutos del Nogal: clientes, ventas, pedidos, cartera, cobros, comisiones y agenda.">
 <meta name="color-scheme" content="light dark">
 <title>Mi Centro Comercial</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/bodoni-moda-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
 <script>
   // Aplica tema y colores guardados antes de pintar (evita parpadeo).
   try {
     var p = JSON.parse(localStorage.getItem('mcc_ui_prefs') || '{}'), r = document.documentElement;
     if (p.theme === 'light' || p.theme === 'dark') r.dataset.theme = p.theme;
-    if (p.palette) r.dataset.palette = p.palette;
+    r.dataset.palette = !p.palette || (p.palette === 'nogal' && !p.v37) ? 'tinta' : p.palette;
     if (p.text) r.dataset.text = p.text;
     if (p.motion === false) r.dataset.motion = 'off';
     if (p.oled) r.dataset.oled = 'on';

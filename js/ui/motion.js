@@ -29,7 +29,9 @@ export function swapScreen(fromName, toName, navOrder, apply) {
   if (document.startViewTransition) {
     try {
       const t = document.startViewTransition(apply);
-      t.finished.finally(() => clearMorph());
+      // Si otra pantalla interrumpe esta transición, el navegador la salta: no es un error.
+      t.ready.catch(() => {});
+      t.finished.catch(() => {}).finally(() => clearMorph());
       return t.updateCallbackDone;
     } catch {
       /* sigue con el respaldo */

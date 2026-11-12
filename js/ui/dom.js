@@ -3,6 +3,7 @@ import { formatCOP, parseDecimal, parsePesos } from '../core/money.js';
 import { ConfirmRequired, DomainError } from '../domain/common.js';
 import { run } from '../store/store.js';
 import { icon, illustration } from './icons.js';
+import { rubberband, spring, velocityTracker } from './spring.js';
 import { ui } from './state.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -113,12 +114,42 @@ export function openModal({ title, subtitle = '', body, submitText = 'Guardar', 
   root.appendChild(wrap);
   document.body.classList.add('modal-open');
   const form = $('form', wrap);
-  const close = () => {
-    wrap.remove();
+  const sheet = $('.modal', wrap);
+  // En el celular la ventana es una hoja que sube desde abajo, con resorte, y
+  // la capa oscura sigue exactamente lo abierta que está la hoja.
+  const isSheet = matchMedia('(max-width: 639px)').matches;
+  const height = () => sheet.offsetHeight || 1;
+  let y = 0;
+  let anim = null;
+  const paint = (v) => {
+    y = v;
+    sheet.style.transform = `translateY(${v}px)`;
+    wrap.style.setProperty('--sheet-open', String(Math.max(0, Math.min(1, 1 - v / height()))));
+  };
+  if (isSheet) {
+    sheet.style.animation = 'none';
+    wrap.classList.add('sheet-driven');
+    paint(height());
+    anim = spring({ from: height(), to: 0, damping: 1, response: 0.38, onUpdate: paint, onDone: () => (sheet.style.transform = '') });
+  }
+  let closed = false;
+  const close = (velocity = 0) => {
+    if (closed) return;
+    closed = true;
+    anim?.stop();
+    // Sale por donde entró. Mientras se va ya no cuenta como ventana abierta:
+    // otro formulario puede abrirse encima sin esperar.
+    sheet.classList.replace('modal', 'sheet-out');
+    wrap.classList.add('leaving');
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.inert = true;
+    document.body.appendChild(wrap);
     modalStack--;
     if (!root.children.length) document.body.classList.remove('modal-open');
+    if (!isSheet) return wrap.remove();
+    spring({ from: y, to: height(), velocity: typeof velocity === 'number' ? velocity : 0, damping: 1, response: 0.3, onUpdate: paint, onDone: () => wrap.remove() });
   };
-  $$('[data-close]', wrap).forEach((b) => b.addEventListener('click', close));
+  $$('[data-close]', wrap).forEach((b) => b.addEventListener('click', () => close()));
   wrap.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') close();
   });
@@ -147,34 +178,46 @@ export function openModal({ title, subtitle = '', body, submitText = 'Guardar', 
       }
     }
   });
-  // En el celular la ventana se cierra deslizándola hacia abajo desde arriba.
-  const sheet = $('.modal', wrap);
-  let startY = null;
-  let dy = 0;
-  const startDrag = (e) => {
-    if (sheet.scrollTop > 0 || e.target.closest('input,select,textarea,button,a')) return;
-    startY = e.touches[0].clientY;
-    dy = 0;
-    sheet.style.transition = 'none';
-  };
-  const moveDrag = (e) => {
-    if (startY === null) return;
-    dy = Math.max(0, e.touches[0].clientY - startY);
-    sheet.style.transform = `translateY(${dy}px)`;
-  };
-  const endDrag = () => {
-    if (startY === null) return;
-    startY = null;
-    sheet.style.transition = 'transform .2s ease';
-    if (dy > 110) {
-      sheet.style.transform = 'translateY(100%)';
-      setTimeout(close, 180);
-    } else sheet.style.transform = '';
-  };
-  for (const el of [$('.grabber', wrap), $('.modal-head', wrap)]) {
-    el.addEventListener('touchstart', startDrag, { passive: true });
-    el.addEventListener('touchmove', moveDrag, { passive: true });
-    el.addEventListener('touchend', endDrag);
+  // Arrastrar la hoja: sigue al dedo 1:1, resiste si se sube de más y al
+  // soltar decide por distancia o por velocidad. Se puede volver a agarrar
+  // a mitad de camino: el resorte arranca desde donde está.
+  if (isSheet) {
+    const vt = velocityTracker();
+    let drag = null;
+    const down = (e) => {
+      if (e.button > 0 || (sheet.scrollTop > 0 && !e.target.closest('.grabber')) || e.target.closest('input,select,textarea,button,a')) return;
+      anim?.stop();
+      drag = { id: e.pointerId, start: e.clientY - y, moved: false };
+      vt.reset();
+      vt.add(y);
+    };
+    const move = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const raw = e.clientY - drag.start;
+      if (!drag.moved) {
+        if (Math.abs(raw - y) < 6) return;
+        drag.moved = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      }
+      paint(raw < 0 ? rubberband(raw, height()) : raw);
+      vt.add(y);
+    };
+    const up = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const moved = drag.moved;
+      drag = null;
+      if (!moved) return;
+      const v = vt.velocity();
+      if (y > height() * 0.4 || (v > 500 && y > 24)) return close(v);
+      anim = spring({ from: y, to: 0, velocity: v, damping: 0.85, response: 0.3, onUpdate: paint, onDone: () => (sheet.style.transform = '') });
+    };
+    for (const el of [$('.grabber', wrap), $('.modal-head', wrap)]) {
+      el.style.touchAction = 'none';
+      el.addEventListener('pointerdown', down);
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    }
   }
   onOpen?.(form, close);
   setTimeout(() => $('input:not([type=hidden]):not([readonly]),select,textarea', form)?.focus(), 60);
@@ -205,7 +248,7 @@ export function confirmDialog({ title, message, confirmText = 'Confirmar', dange
     });
     if (danger) $('button[type=submit]', m.form).classList.replace('btn-primary', 'btn-danger');
     const obs = new MutationObserver(() => {
-      if (!m.form.isConnected) {
+      if (!m.form.closest('#modal-root')) {
         obs.disconnect();
         finish(false);
       }
