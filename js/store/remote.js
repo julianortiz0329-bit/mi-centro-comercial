@@ -6,11 +6,12 @@ export const CLOUD = {
 };
 
 export class RemoteError extends Error {
-  constructor(message, { offline = false, auth = false } = {}) {
+  constructor(message, { offline = false, auth = false, rateLimited = false } = {}) {
     super(message);
     this.name = 'RemoteError';
     this.offline = offline;
     this.auth = auth;
+    this.rateLimited = rateLimited;
   }
 }
 
@@ -39,7 +40,13 @@ export async function rpc(fn, args, { timeout = 20000 } = {}) {
   }
   if (!res.ok) {
     const auth = body?.code === '28000';
-    throw new RemoteError(auth ? 'La clave no es válida o fue desactivada.' : body?.message || `Error ${res.status} de la nube.`, { auth });
+    const isRateLimited = body?.message && /demasiados intentos/i.test(body.message);
+    const msg = isRateLimited
+      ? body.message
+      : auth
+        ? 'La clave no es válida o fue desactivada.'
+        : body?.message || `Error ${res.status} de la nube.`;
+    throw new RemoteError(msg, { auth, rateLimited: isRateLimited });
   }
   return body;
 }
