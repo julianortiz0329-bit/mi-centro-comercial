@@ -24,6 +24,7 @@ export function renderMore() {
     ['#/datos', '💾', 'Datos y copias de seguridad', 'Respaldar, restaurar, importar'],
     ['#/config', '⚙️', 'Configuración', 'Reglas, plazos, rangos de cartera, plantillas'],
     ['#/auditoria', '🧾', 'Registro de auditoría', 'Quién cambió qué y cuándo'],
+    ['#/uber', '🏍️', 'Uber Moto', 'Lo que ganas y gastas cada día en la moto'],
     ['#/alegria', '🐾', 'Alegría Pet Home', 'Tu parte del mes y el libro de socios'],
     ['#/ayuda', '❓', 'Ayuda y acerca de', 'Cómo funciona y límites de esta versión'],
   ];

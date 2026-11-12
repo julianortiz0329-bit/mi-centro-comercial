@@ -2,7 +2,7 @@
 // vibración, foto de perfil, orden del inicio y bloqueo con PIN o huella.
 import { getState } from '../store/store.js';
 import { $, esc, haptic, toast } from './dom.js';
-import { icon } from './icons.js';
+import { icon, monogram } from './icons.js';
 import { sounds } from './motion.js';
 import { biometricAvailable, disableBiometric, enableBiometric, removePin, setupPin } from './lock.js';
 import { DEFAULT_HOME, HOME_SECTIONS, PALETTES, savePrefs, ui } from './state.js';
@@ -33,6 +33,8 @@ export function initials(name) {
 /** Avatar del usuario: foto o iniciales sobre degradado. */
 export function userAvatar(size = 44) {
   const name = getState().settings.sellerName;
+  // Sin foto ni nombre se muestra el logo, no unas iniciales genéricas.
+  if (!ui.photo && !name?.trim()) return monogram(size);
   return ui.photo
     ? `<img class="me-avatar" src="${ui.photo}" width="${size}" height="${size}" alt="" style="width:${size}px;height:${size}px">`
     : `<span class="me-avatar initials" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px" aria-hidden="true">${esc(initials(name || 'Mi Centro'))}</span>`;

@@ -5,7 +5,7 @@
 import { emptyPetHome } from './pethome.js';
 
 export const SCHEMA_VERSION = 2;
-export const APP_VERSION = '3.7.0';
+export const APP_VERSION = '3.10.0';
 
 /** Reglas comerciales vigentes. Cada comisión guarda una copia de las reglas
  *  aplicadas (rulesSnapshot), así un cambio futuro no altera el historial. */
@@ -151,6 +151,7 @@ export function emptyState() {
     audit: [],
     legacy: { petHome: { products: [], suppliers: [] } },
     pethome: emptyPetHome(),
+    moto: { days: [], expenses: [], goal: 0 }, // Uber Moto (3.8)
   };
 }
 
@@ -176,5 +177,7 @@ export function normalizeState(s) {
   const ph = s.pethome || {};
   out.pethome = { ...base.pethome, ...ph, profile: { ...base.pethome.profile, ...(ph.profile || {}) }, settings: { ...base.pethome.settings, ...(ph.settings || {}) }, counters: { ...base.pethome.counters, ...(ph.counters || {}) } };
   for (const k of ['products', 'suppliers', 'notes', 'sales', 'purchases']) if (!Array.isArray(out.pethome[k])) out.pethome[k] = [];
+  const mo = s.moto && typeof s.moto === 'object' ? s.moto : {};
+  out.moto = { days: Array.isArray(mo.days) ? mo.days : [], expenses: Array.isArray(mo.expenses) ? mo.expenses : [], goal: Number.isSafeInteger(mo.goal) && mo.goal > 0 ? mo.goal : 0 };
   return out;
 }

@@ -97,6 +97,26 @@ export class PdfDoc {
     this.page.push(ops.join(' '));
   }
 
+  /** Rectángulo con esquinas redondeadas (radio r), relleno. */
+  roundRect(x, y, w, h, r, { fill = '#000000' } = {}) {
+    const k = 0.5523 * r;
+    const X = (v) => f(v);
+    const Y = (v) => f(this.height - v);
+    this.page.push([
+      `${hexToRgb(fill)} rg`,
+      `${X(x + r)} ${Y(y)} m`,
+      `${X(x + w - r)} ${Y(y)} l`,
+      `${X(x + w - r + k)} ${Y(y)} ${X(x + w)} ${Y(y + r - k)} ${X(x + w)} ${Y(y + r)} c`,
+      `${X(x + w)} ${Y(y + h - r)} l`,
+      `${X(x + w)} ${Y(y + h - r + k)} ${X(x + w - r + k)} ${Y(y + h)} ${X(x + w - r)} ${Y(y + h)} c`,
+      `${X(x + r)} ${Y(y + h)} l`,
+      `${X(x + r - k)} ${Y(y + h)} ${X(x)} ${Y(y + h - r + k)} ${X(x)} ${Y(y + h - r)} c`,
+      `${X(x)} ${Y(y + r)} l`,
+      `${X(x)} ${Y(y + r - k)} ${X(x + r - k)} ${Y(y)} ${X(x + r)} ${Y(y)} c`,
+      'f',
+    ].join(' '));
+  }
+
   line(x1, y1, x2, y2, { color = '#cccccc', width = 0.6 } = {}) {
     this.page.push(`${hexToRgb(color)} RG ${f(width)} w ${f(x1)} ${f(this.height - y1)} m ${f(x2)} ${f(this.height - y2)} l S`);
   }

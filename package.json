@@ -1,6 +1,6 @@
 {
   "name": "mi-centro-comercial",
-  "version": "3.7.0",
+  "version": "3.10.0",
   "private": true,
   "description": "CRM comercial PWA (sin dependencias): clientes, ventas, cartera, cobros y comisiones de El Puntazo y Frutos del Nogal.",
   "type": "module",

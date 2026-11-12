@@ -14,6 +14,7 @@ export const HOME_SECTIONS = {
   acciones: 'Lo importante hoy',
   hero: 'Tarjeta de comisión',
   alegria: 'Alegría: tu parte del mes',
+  uber: 'Uber Moto del mes',
   accesos: 'Accesos rápidos',
   indicadores: 'Indicadores del mes',
   umbral: 'Umbral y ritmo de Nogal',
@@ -37,6 +38,8 @@ const cleanOrder = (o) => {
   const valid = Array.isArray(o) ? o.filter((k) => HOME_SECTIONS[k]) : [];
   // Secciones nuevas: el cuadrito de Alegría va justo después de la comisión.
   if (valid.length && !valid.includes('alegria')) valid.splice(valid.includes('hero') ? valid.indexOf('hero') + 1 : 0, 0, 'alegria');
+  // 3.8: Uber Moto va justo después de Alegría.
+  if (valid.length && !valid.includes('uber')) valid.splice(valid.indexOf('alegria') + 1, 0, 'uber');
   return [...new Set([...valid, ...DEFAULT_HOME])];
 };
 

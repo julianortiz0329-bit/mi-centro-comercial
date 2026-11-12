@@ -12,13 +12,17 @@ import { COMMISSION_STATUSES } from '../domain/schema.js';
 const W = 595.28;
 const H = 841.89;
 const M = 40;
-const INK = '#0f172a';
-const MUTED = '#64748b';
-const BRAND = '#0f172a';
+// Colores del diseño Tinta (3.7) con el verde del logo Crecimiento (3.9).
+const INK = '#111111';
+const MUTED = '#575757';
+const BRAND = '#111111';
 const ACCENT = '#10b981';
+const MINT = '#6ee7b7';
+const GREEN = '#047857';
 const IVORY = '#ffffff';
-const LINE = '#e2e8f0';
-const SOFT = '#f1f5f9';
+const LINE = '#e4e4e1';
+const SOFT = '#f2f2ef';
+const BAND_TXT = '#c9c9c4';
 const money = formatCOP;
 const num = (v) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(v);
 
@@ -26,7 +30,7 @@ function header(pdf, s, companyId, title, rightLines) {
   const pf = s.settings.companyProfiles?.[companyId] || {};
   const co = s.companies[companyId];
   const bandH = 104;
-  // Franja de marca: azul marino con filete verde esmeralda (diseño 3.5).
+  // Franja de marca: tinta con filete verde.
   pdf.rect(0, 0, W, bandH, { fill: BRAND });
   pdf.rect(0, bandH, W, 3, { fill: ACCENT });
   let x = M;
@@ -42,9 +46,9 @@ function header(pdf, s, companyId, title, rightLines) {
   }
   pdf.text(pf.legalName || co.name, x, 44, { size: 16, bold: true, color: IVORY });
   const info = [pf.nit ? `NIT ${pf.nit}` : '', [pf.address, pf.city].filter(Boolean).join(' · '), [pf.phone, pf.email].filter(Boolean).join(' · ')].filter(Boolean);
-  info.forEach((t, i) => pdf.text(t, x, 60 + i * 12, { size: 8.5, color: '#cbd5e1' }));
-  pdf.text(title, W - M, 44, { size: 15, bold: true, color: '#6ee7b7', align: 'right' });
-  rightLines.forEach((t, i) => pdf.text(t, W - M, 60 + i * 12, { size: 8.5, color: '#cbd5e1', align: 'right' }));
+  info.forEach((t, i) => pdf.text(t, x, 60 + i * 12, { size: 8.5, color: BAND_TXT }));
+  pdf.text(title, W - M, 44, { size: 15, bold: true, color: MINT, align: 'right' });
+  rightLines.forEach((t, i) => pdf.text(t, W - M, 60 + i * 12, { size: 8.5, color: BAND_TXT, align: 'right' }));
   return bandH + 24;
 }
 
@@ -59,10 +63,10 @@ function footers(pdf, s, companyId, label) {
 }
 
 /** Tabla genérica con salto de página y encabezado repetido. */
-export function table(pdf, y, cols, rows, { onNewPage } = {}) {
+export function table(pdf, y, cols, rows, { onNewPage, left = M, right = W - M } = {}) {
   const drawHead = () => {
-    pdf.rect(M, y, W - 2 * M, 18, { fill: SOFT });
-    let x = M;
+    pdf.rect(left, y, right - left, 18, { fill: SOFT });
+    let x = left;
     for (const c of cols) {
       pdf.text(c.label, c.align === 'right' ? x + c.w - 4 : x + 4, y + 12, { size: 8, bold: true, color: MUTED, align: c.align === 'right' ? 'right' : 'left' });
       x += c.w;
@@ -83,7 +87,7 @@ export function table(pdf, y, cols, rows, { onNewPage } = {}) {
       y = onNewPage ? onNewPage() : M;
       drawHead();
     }
-    let x = M;
+    let x = left;
     cells.forEach((cell, i) => {
       const c = cols[i];
       const ax = c.align === 'right' ? x + c.w - 4 : x + 4;
@@ -92,7 +96,7 @@ export function table(pdf, y, cols, rows, { onNewPage } = {}) {
       x += c.w;
     });
     y += h;
-    pdf.line(M, y - 2, W - M, y - 2, { color: LINE, width: 0.4 });
+    pdf.line(left, y - 2, right, y - 2, { color: LINE, width: 0.4 });
   }
   return y + 6;
 }
@@ -105,90 +109,159 @@ export function ensure(pdf, y, needed) {
   return y;
 }
 
+// Cotización / pedido / venta, estilo "Banda lateral" (3.10): una banda en
+// tinta a la izquierda con la empresa, el cliente y las fechas; a la derecha
+// el título, los productos y el total en una pastilla verde.
+const BAND = 168;
+const CX = BAND + 30; // borde izquierdo del contenido
+const CR = W - 34; // borde derecho del contenido
+const BX = 24; // margen interno de la banda
+const BW = BAND - 2 * BX;
+
+/** Dibuja la banda en la página actual. En la primera lleva todo; en las demás, solo la marca. */
+function sideBand(pdf, s, doc, client, { full }) {
+  const pf = s.settings.companyProfiles?.[doc.companyId] || {};
+  const co = s.companies[doc.companyId];
+  pdf.rect(0, 0, BAND, H, { fill: BRAND });
+  let y = 44;
+  if (pf.logo?.dataUrl) {
+    const r = Math.min(BW / pf.logo.w, 56 / pf.logo.h);
+    const lw = pf.logo.w * r;
+    const lh = pf.logo.h * r;
+    pdf.roundRect(BX - 6, y - 6, lw + 12, lh + 12, 8, { fill: '#ffffff' });
+    pdf.image(dataUrlToBytes(pf.logo.dataUrl), pf.logo.w, pf.logo.h, BX, y, lw, lh);
+    y += lh + 26;
+  }
+  for (const t of wrapText(pf.legalName || co.name, BW, 12.5, true)) {
+    pdf.text(t, BX, y, { size: 12.5, bold: true, color: IVORY });
+    y += 15;
+  }
+  if (!full) return;
+  const info = [pf.nit ? `NIT ${pf.nit}` : '', pf.address, pf.city, pf.phone, pf.email].filter(Boolean);
+  for (const line of info) for (const t of wrapText(line, BW, 8)) {
+    pdf.text(t, BX, y + 1, { size: 8, color: BAND_TXT });
+    y += 11;
+  }
+  const block = (label, lines, { strong = false } = {}) => {
+    y += 16;
+    pdf.text(label, BX, y, { size: 7, bold: true, color: MINT });
+    y += 13;
+    lines.filter(Boolean).forEach((line, i) => {
+      const bold = strong && i === 0;
+      for (const t of wrapText(line, BW, bold ? 10 : 8.5, bold)) {
+        pdf.text(t, BX, y, { size: bold ? 10 : 8.5, bold, color: bold ? IVORY : BAND_TXT });
+        y += bold ? 13 : 11;
+      }
+    });
+  };
+  y += 8;
+  pdf.line(BX, y, BAND - BX, y, { color: '#2e2e2c', width: 0.6 });
+  block('CLIENTE', [client.legalName || client.tradeName, client.taxId ? `NIT / CC ${client.taxId}` : '', client.contactName, client.phone || client.whatsapp, [client.city, client.address].filter(Boolean).join(' · ')], { strong: true });
+  block('FECHA', [formatDate(doc.date)]);
+  if (doc.kind === 'cotizacion' && doc.validUntil) block('VÁLIDA HASTA', [formatDate(doc.validUntil)]);
+  if (doc.kind !== 'cotizacion' && doc.dueDate) block('VENCE', [formatDate(doc.dueDate)]);
+  if (doc.kind !== 'cotizacion') block('PAGO', [doc.term?.days === 0 ? 'De contado' : `${doc.term?.days} días`]);
+  if (s.settings.sellerName) block('ASESOR', [s.settings.sellerName]);
+}
+
 export function documentPdf(s, doc) {
   const pdf = new PdfDoc();
   const client = s.clients.find((c) => c.id === doc.clientId) || {};
   const pf = s.settings.companyProfiles?.[doc.companyId] || {};
-  const title = { cotizacion: 'COTIZACIÓN', pedido: 'PEDIDO', venta: 'VENTA' }[doc.kind];
-  const right = [`N.º ${doc.number}${doc.externalRef ? ` · Ref. ${doc.externalRef}` : ''}`, `Fecha: ${formatDate(doc.date)}`];
-  if (doc.kind === 'cotizacion' && doc.validUntil) right.push(`Válida hasta: ${formatDate(doc.validUntil)}`);
-  if (doc.kind !== 'cotizacion' && doc.dueDate) right.push(`Vence: ${formatDate(doc.dueDate)}`);
-  let y = header(pdf, s, doc.companyId, title, right);
+  const name = { cotizacion: 'Cotización', pedido: 'Pedido', venta: 'Venta' }[doc.kind];
+  const number = `${doc.number}${doc.externalRef ? ` · Ref. ${doc.externalRef}` : ''}`;
+  sideBand(pdf, s, doc, client, { full: true });
 
-  // Cliente
-  const cl = [['Cliente', client.legalName || client.tradeName], ['NIT / CC', client.taxId], ['Contacto', client.contactName], ['Teléfono', client.phone || client.whatsapp], ['Ciudad', [client.city, client.address].filter(Boolean).join(' · ')]].filter(([, v]) => v);
-  pdf.rect(M, y, W - 2 * M, 14 + cl.length * 13, { fill: SOFT });
-  cl.forEach(([k, v], i) => {
-    pdf.text(`${k}:`, M + 10, y + 16 + i * 13, { size: 9, bold: true, color: MUTED });
-    pdf.text(v, M + 80, y + 16 + i * 13, { size: 9, color: INK });
-  });
-  y += 26 + cl.length * 13;
+  // Título y número
+  pdf.text(name, CX, 66, { size: 28, bold: true, color: INK });
+  pdf.text(doc.number, CR, 66, { size: 9.5, color: MUTED, align: 'right' });
+  if (doc.externalRef) pdf.text(`Ref. ${doc.externalRef}`, CR, 78, { size: 8.5, color: MUTED, align: 'right' });
+  let y = 104;
 
+  // Productos: el descuento va en la línea de detalle para dejar espacio a lo importante.
   const hasKg = doc.lines.some((l) => l.contentQty);
-  const cols = [
-    { label: 'Producto', w: hasKg ? 170 : 220, bold: true },
-    { label: 'Cant.', w: 45, align: 'right' },
-    { label: 'Precio unit.', w: 75, align: 'right' },
-    ...(hasKg ? [{ label: 'Por kg / und', w: 60, align: 'right' }] : []),
-    { label: 'Desc.', w: 35, align: 'right' },
-    { label: 'IVA', w: 35, align: 'right' },
-    { label: 'Subtotal', w: hasKg ? 95 : 105, align: 'right' },
-  ];
+  const cw = CR - CX;
+  const cols = hasKg
+    ? [{ label: 'Producto', w: cw - 244, bold: true }, { label: 'Cant.', w: 38, align: 'right' }, { label: 'Precio', w: 60, align: 'right' }, { label: 'Por kg/und', w: 52, align: 'right' }, { label: 'IVA', w: 28, align: 'right' }, { label: 'Subtotal', w: 66, align: 'right' }]
+    : [{ label: 'Producto', w: cw - 214, bold: true }, { label: 'Cant.', w: 44, align: 'right' }, { label: 'Precio', w: 70, align: 'right' }, { label: 'IVA', w: 30, align: 'right' }, { label: 'Subtotal', w: 70, align: 'right' }];
   const rows = doc.lines.map((l) => {
     const c = computeLine(l);
     const unit = (l.presentation || '').split(' x ')[0].toLowerCase();
-    const per = l.contentQty ? `${money(Math.round((l.unitPrice * (1 - (l.discountPct || 0) / 100)) / l.contentQty))}/${l.contentUnit === 'und' ? 'und' : 'kg'}` : '';
+    const per = l.contentQty ? `${money(Math.round((l.unitPrice * (1 - (l.discountPct || 0) / 100)) / l.contentQty))}` : '';
+    const detail = [l.presentation, l.contentQty ? `${num(l.qty * l.contentQty)} ${l.contentUnit === 'und' ? 'und' : 'kg'} en total` : '', l.discountPct ? `desc. ${num(l.discountPct)} %` : ''].filter(Boolean).join(' · ');
     return [
-      { text: l.presentation ? l.description.replace(` · ${l.presentation}`, '') : l.description, sub: [l.presentation, l.contentQty ? `${num(l.qty * l.contentQty)} ${l.contentUnit === 'und' ? 'und' : 'kg'} en total` : ''].filter(Boolean).join(' · ') },
+      { text: l.presentation ? l.description.replace(` · ${l.presentation}`, '') : l.description, sub: detail },
       { text: num(l.qty), sub: unit ? `${unit}${l.qty === 1 ? '' : 's'}` : '' },
       money(l.unitPrice),
       ...(hasKg ? [per] : []),
-      l.discountPct ? `${num(l.discountPct)} %` : '—',
       `${num(l.ivaPct)} %`,
       money(c.net),
     ];
   });
-  y = table(pdf, y, cols, rows);
+  const newPage = () => {
+    sideBand(pdf, s, doc, client, { full: false });
+    pdf.text(`${name} ${doc.number} (continuación)`, CX, 52, { size: 10, bold: true, color: INK });
+    return 70;
+  };
+  y = table(pdf, y, cols, rows, { left: CX, right: CR, onNewPage: newPage });
 
   // Totales
-  y = ensure(pdf, y, 100);
-  const tx = W - M - 220;
-  const tot = [['Subtotal', doc.totals.gross], ['Descuentos', -doc.totals.discount], ['Valor antes de IVA', doc.totals.net], ['IVA', doc.totals.iva]].filter(([k, v]) => k !== 'Descuentos' || v);
+  if (y + 120 > H - 60) {
+    pdf.addPage();
+    y = newPage();
+  }
+  const tw = 200;
+  const tx = CR - tw;
+  const tot = [['Subtotal', doc.totals.gross], ['Descuentos', -doc.totals.discount], ['Antes de IVA', doc.totals.net], ['IVA', doc.totals.iva]].filter(([k, v]) => k !== 'Descuentos' || v);
+  y += 6;
   tot.forEach(([k, v], i) => {
-    pdf.text(k, tx, y + 10 + i * 14, { size: 9.5, color: MUTED });
-    pdf.text(v < 0 ? `− ${money(-v)}` : money(v), W - M, y + 10 + i * 14, { size: 9.5, color: INK, align: 'right' });
+    pdf.text(k, tx, y + 10 + i * 15, { size: 9.5, color: MUTED });
+    pdf.text(v < 0 ? `− ${money(-v)}` : money(v), CR, y + 10 + i * 15, { size: 9.5, color: INK, align: 'right' });
   });
-  y += tot.length * 14 + 6;
-  pdf.rect(tx - 8, y, W - M - tx + 8, 26, { fill: BRAND });
-  pdf.rect(tx - 8, y + 26, W - M - tx + 8, 2, { fill: ACCENT });
-  pdf.text('TOTAL', tx, y + 17, { size: 11, bold: true, color: '#6ee7b7' });
-  pdf.text(money(doc.totals.total), W - M - 6, y + 17, { size: 13, bold: true, color: IVORY, align: 'right' });
-  y += 40;
+  y += tot.length * 15 + 8;
+  pdf.roundRect(tx - 10, y, tw + 10, 36, 9, { fill: GREEN });
+  pdf.text('Total', tx + 2, y + 23, { size: 12, bold: true, color: IVORY });
+  pdf.text(money(doc.totals.total), CR - 12, y + 23, { size: 14, bold: true, color: IVORY, align: 'right' });
+  y += 62;
 
   // Condiciones
   const cond = [];
-  if (doc.kind !== 'cotizacion') cond.push(`Condición de pago: ${doc.term.days === 0 ? 'contado' : `${doc.term.days} días`}.`);
   if (doc.kind === 'cotizacion' && doc.validUntil) cond.push(`Cotización válida hasta el ${formatDate(doc.validUntil)}.`);
+  if (doc.kind !== 'cotizacion') cond.push(`Condición de pago: ${doc.term.days === 0 ? 'contado' : `${doc.term.days} días`}.`);
   cond.push('Precios en pesos colombianos (COP). El IVA se discrimina por producto.');
   if (pf.quoteTerms) cond.push(pf.quoteTerms);
   if (doc.notes) cond.push(`Observaciones: ${doc.notes}`);
-  y = ensure(pdf, y, 40);
-  pdf.text('Condiciones', M, y, { size: 10, bold: true, color: INK });
-  y += 14;
+  const ensureC = (need) => {
+    if (y + need > H - 60) {
+      pdf.addPage();
+      y = newPage();
+    }
+  };
+  ensureC(40);
+  pdf.text('Condiciones', CX, y, { size: 10, bold: true, color: INK });
+  y += 15;
   for (const c of cond) {
-    for (const t of wrapText(c, W - 2 * M, 9)) {
-      y = ensure(pdf, y, 12);
-      pdf.text(t, M, y, { size: 9, color: MUTED });
+    for (const t of wrapText(c, cw, 8.8)) {
+      ensureC(12);
+      pdf.text(t, CX, y, { size: 8.8, color: MUTED });
       y += 12;
     }
-    y += 2;
+    y += 3;
   }
   if (s.settings.sellerName) {
-    y = ensure(pdf, y, 40);
-    pdf.text(`Atentamente, ${s.settings.sellerName}`, M, y + 16, { size: 10, color: INK });
+    ensureC(40);
+    pdf.text(`Atentamente, ${s.settings.sellerName}`, CX, y + 18, { size: 10, color: INK });
   }
-  footers(pdf, s, doc.companyId, `${title.charAt(0)}${title.slice(1).toLowerCase()} ${doc.number}`);
-  return pdf.output({ title: `${title} ${doc.number}` });
+
+  // Pie de página dentro del área de contenido
+  const n = pdf.pages.length;
+  pdf.pages.forEach((_, i) => {
+    pdf.page = pdf.pages[i];
+    pdf.line(CX, H - 34, CR, H - 34, { color: LINE, width: 0.6 });
+    pdf.text(`${name} ${number}`, CX, H - 22, { size: 8, color: MUTED });
+    pdf.text(`Página ${i + 1} de ${n}`, CR, H - 22, { size: 8, color: MUTED, align: 'right' });
+  });
+  return pdf.output({ title: `${name.toUpperCase()} ${doc.number}` });
 }
 
 export function commissionReportPdf(s, companyId, period) {

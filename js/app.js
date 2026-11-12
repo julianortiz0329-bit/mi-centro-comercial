@@ -37,6 +37,7 @@ import { parseContactText } from './domain/contact-parse.js';
 import { handleAgendaAction, renderAgenda, renderHome } from './ui/views-home.js';
 import { renderAudit, renderConfig, renderData, renderGoals, renderHelp, renderMore, renderPetHome, renderProducts, renderReports } from './ui/views-more.js';
 import { renderDocument, renderSales, salesQuery, salesResults } from './ui/views-sales.js';
+import { motoHandlers, renderMoto } from './ui/views-moto.js';
 
 const S = () => getState();
 const NAV = [
@@ -55,13 +56,16 @@ const FAB_ITEMS = [
   ['new-doc', 'quote', 'Nueva cotización', 'cotizacion'],
   ['new-client', 'userPlus', 'Nuevo cliente'],
   ['new-task', 'calendar', 'Programar tarea'],
+  ['moto-day', 'bike', 'Día de Uber'],
 ];
 const NAV_ORDER = ['hoy', 'clientes', 'ventas', 'cartera', 'comisiones', 'mas'];
 // Alegría se mudó a su propia app (libro de socios): las rutas viejas llevan a su resumen.
 const isPhRoute = (n) => n === 'ph' || n.startsWith('ph-');
-const SECTION = { alegria: 'mas', personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
+const SECTION = { uber: 'mas', alegria: 'mas', personalizar: 'mas', cliente: 'clientes', doc: 'ventas', agenda: 'mas', productos: 'mas', metas: 'mas', reportes: 'mas', datos: 'mas', config: 'mas', auditoria: 'mas', pethome: 'mas', ayuda: 'mas' };
 
+let renderSeq = 0;
 async function render() {
+  const seq = ++renderSeq;
   const main = $('#main');
   const r = route();
   if (isPhRoute(r.name)) return navigate('#/alegria');
@@ -90,6 +94,7 @@ async function render() {
       case 'config': html = renderConfig(); break;
       case 'personalizar': html = renderPersonalize(); break;
       case 'alegria': html = renderAlegria(S()); break;
+      case 'uber': html = renderMoto(r.params); break;
       case 'pethome': html = renderPetHome(); break;
       case 'auditoria': html = renderAudit(); break;
       case 'ayuda': html = renderHelp(); break;
@@ -105,6 +110,8 @@ async function render() {
   const fromId = lastKey.split('/')[1];
   const prevCount = $('.hero-amount[data-count]', main)?.dataset.count;
   const apply = () => {
+    // Si mientras tanto se pidió otra pantalla, esta ya no se dibuja (evita que una vieja tape a la nueva).
+    if (seq !== renderSeq) return;
     main.innerHTML = html;
     // Al volver de una ficha, la tarjeta del cliente recibe la ficha que se encoge.
     if (r.name === 'clientes' && fromName === 'cliente') markMorph($(`.client-card a[href="#/cliente/${fromId}"]`)?.closest('.client-card'));
@@ -123,6 +130,7 @@ async function render() {
   };
   if (changed && lastKey) await swapScreen(fromName, r.name, NAV_ORDER, apply);
   else apply();
+  if (seq !== renderSeq) return;
   lastKey = `${r.name}/${r.id}`;
   if (r.name !== lastRoute) main.focus({ preventScroll: true });
   lastRoute = r.name;
@@ -456,6 +464,7 @@ Object.assign(handlers, {
 });
 
 const pz = personalizeHandlers(() => render());
+Object.assign(handlers, motoHandlers);
 for (const k of ['set-theme', 'set-palette', 'set-text', 'home-move', 'home-reset', 'photo-remove', 'pin-setup', 'pin-remove', 'bio-on', 'bio-off']) handlers[k] = pz[k];
 
 /** Reduce una imagen a JPEG (fondo blanco) para el logo de los PDF. */

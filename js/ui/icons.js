@@ -24,6 +24,8 @@ const P = {
   star: '<path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
   trend: '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  bike: '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h2.5l3 8.5"/><path d="M5.5 17.5 9 10h6l3.5 7.5"/><path d="M9 10 7.5 7H5"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
   userPlus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
@@ -51,11 +53,12 @@ export function icon(name, { size = 20, cls = '' } = {}) {
   return `<svg class="ico ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-/** Monograma de la marca (MC) para la barra y la pantalla de bienvenida. */
-let mgSeq = 0;
+/** Logo de la marca (3.9, "Crecimiento"): una M cuyo último trazo sube como
+ *  una flecha. Blanco sobre la tinta de la colección; la punta en verde. */
+const LOGO_M = 'M15 47V21l15 16 18-19';
+const LOGO_ARROW = 'M38 17h11v11';
 export function monogram(size = 36) {
-  const id = `mg${++mgSeq}`; // id único: varios monogramas en la misma página
-  return `<svg class="monogram" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--mono-a,var(--hero-accent,#e3c27a))"/><stop offset="1" style="stop-color:var(--mono-b,var(--gold,#b8893b))"/></linearGradient></defs><rect width="64" height="64" rx="16" style="fill:var(--hero-a,#1f4d3e)"/><rect x="3" y="3" width="58" height="58" rx="13" fill="none" stroke="url(#${id})" stroke-opacity=".55"/><text x="32" y="42" text-anchor="middle" style="font-family:var(--mono-font,Fraunces,Georgia,serif)" font-weight="700" font-size="27" fill="url(#${id})">MC</text></svg>`;
+  return `<svg class="monogram" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" style="fill:var(--mono-bg,var(--hero-a,#111111))"/><path d="${LOGO_M}" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--mono-a,#ffffff)"/><path d="${LOGO_ARROW}" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--mono-accent,#34d399)"/></svg>`;
 }
 
 /** Ilustración para estados vacíos (hojas de nogal y una nuez). */
