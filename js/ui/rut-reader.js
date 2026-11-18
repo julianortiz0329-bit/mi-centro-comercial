@@ -41,3 +41,28 @@ export async function readRutPdf(file) {
     doc.destroy();
   }
 }
+
+/** Texto de todas las páginas de un PDF, una línea por renglón (para el informe de Nogal). */
+export async function pdfLines(file) {
+  const { getDocument } = await pdfjs();
+  const doc = await getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  try {
+    const out = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      const vp = page.getViewport({ scale: 1 });
+      const tc = await page.getTextContent();
+      const items = tc.items.filter((it) => typeof it.str === 'string' && it.str.trim()).map((it) => ({ str: it.str.trim(), x: it.transform[4], y: vp.height - it.transform[5] }));
+      const lines = [];
+      for (const it of items.sort((a, b) => a.y - b.y || a.x - b.x)) {
+        const last = lines[lines.length - 1];
+        if (last && Math.abs(last.y - it.y) < 3) last.parts.push(it);
+        else lines.push({ y: it.y, parts: [it] });
+      }
+      for (const l of lines) out.push(l.parts.sort((a, b) => a.x - b.x).map((p) => p.str).join(' '));
+    }
+    return out.join('\n');
+  } finally {
+    doc.destroy();
+  }
+}

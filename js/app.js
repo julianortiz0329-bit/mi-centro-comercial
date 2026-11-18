@@ -11,7 +11,7 @@ import { V1_KEY } from './domain/migrate.js';
 import { reversePayment, unapplyAllocation } from './domain/payments.js';
 import { loadNogalCatalog, saveProduct } from './domain/products.js';
 import { priceListText, quoteText } from './ui/quote.js';
-import { commissionReportPdf, documentPdf, sharePdf } from './ui/pdf-docs.js';
+import { commissionReportPdf, documentPdf, priceListPdf, sharePdf } from './ui/pdf-docs.js';
 import { quickLogForm } from './ui/quicklog.js';
 import { CLIENT_STATUSES, emptyState, ACTIVE_COMPANY_IDS } from './domain/schema.js';
 import { setGoals, updateSettings } from './domain/settings.js';
@@ -38,6 +38,8 @@ import { handleAgendaAction, renderAgenda, renderHome } from './ui/views-home.js
 import { renderAudit, renderConfig, renderData, renderGoals, renderHelp, renderMore, renderPetHome, renderProducts, renderReports } from './ui/views-more.js';
 import { renderDocument, renderSales, salesQuery, salesResults } from './ui/views-sales.js';
 import { motoHandlers, renderMoto } from './ui/views-moto.js';
+import { pickNogalReport } from './ui/nogal-import.js';
+import { backupToDrive, disconnectDrive, driveConfig, saveDriveConfig } from './ui/drive.js';
 
 const S = () => getState();
 const NAV = [
@@ -303,6 +305,7 @@ const handlers = {
     if (n !== null) toast(`${n} producto(s) cargados en Frutos del Nogal`);
   },
   'share-prices': (el) => sharePriceList(el.dataset.co),
+  'price-pdf': (el) => priceListForm(el.dataset.co),
   'share-quote': (el) => whatsappComposer({ clientId: S().documents.find((d) => d.id === el.dataset.doc).clientId, documentId: el.dataset.doc, presetText: quoteText(S(), S().documents.find((d) => d.id === el.dataset.doc)) }),
   print: () => window.print(),
   'set-name': () =>
@@ -465,6 +468,57 @@ Object.assign(handlers, {
 
 const pz = personalizeHandlers(() => render());
 Object.assign(handlers, motoHandlers);
+handlers['nogal-import'] = () => pickNogalReport();
+handlers['drive-backup'] = async (el) => {
+  if (el) el.disabled = true;
+  try {
+    toast('Subiendo la copia a Google Drive…');
+    const at = await backupToDrive(makeBackup(S(), new Date().toISOString()));
+    await run(updateSettings, { lastBackupAt: at });
+    toast('Copia guardada en tu Google Drive ✓');
+    haptic(HAPTIC.tap);
+  } catch (e) {
+    toast(e?.message || 'No se pudo subir la copia.', 'error');
+  } finally {
+    if (el) el.disabled = false;
+  }
+};
+handlers['drive-setup'] = () => {
+  const cfg = driveConfig();
+  const origin = location.origin;
+  openModal({
+    title: 'Configurar Google Drive',
+    subtitle: 'Se hace una sola vez. Google pide que la app tenga su propia “llave” a tu nombre.',
+    body: `<ol class="drive-steps">
+      <li>En el computador entra a <b>console.cloud.google.com</b> con tu cuenta de Google y crea un proyecto llamado <b>Mi Centro Comercial</b>.</li>
+      <li><b>APIs y servicios → Biblioteca</b>: busca <b>Google Drive API</b> y actívala.</li>
+      <li><b>Pantalla de consentimiento de OAuth</b>: tipo <b>Externo</b>, nombre de la app y tu correo. En <b>Usuarios de prueba</b> agrega tu correo.</li>
+      <li><b>Credenciales → Crear credenciales → ID de cliente de OAuth</b>, tipo <b>Aplicación web</b>. En <b>Orígenes de JavaScript autorizados</b> pon: <code>${esc(origin)}</code></li>
+      <li>Copia el <b>ID de cliente</b> (termina en <code>.apps.googleusercontent.com</code>) y pégalo aquí.</li>
+    </ol>
+    ${field({ name: 'clientId', label: 'ID de cliente de Google', value: cfg.clientId || '', full: true, placeholder: '1234…apps.googleusercontent.com', attrs: 'autocomplete="off" spellcheck="false"' })}
+    <p class="muted small">La app solo puede ver y cambiar los archivos que ella misma crea en tu Drive; no ve tus otros archivos. La llave queda guardada solo en este celular.</p>
+    ${cfg.clientId ? '<button type="button" class="btn btn-plain btn-small danger" data-drive-off>Desconectar Google Drive</button>' : ''}`,
+    submitText: 'Guardar y respaldar',
+    onOpen: (f) => $('[data-drive-off]', f)?.addEventListener('click', () => {
+      disconnectDrive();
+      saveDriveConfig({ clientId: null, fileId: null, monthly: null, lastAt: null });
+      toast('Google Drive desconectado');
+      f.closest('.modal')?.querySelector('[data-close]')?.click();
+      render();
+    }),
+    onSubmit: async (fd) => {
+      const id = String(fd.get('clientId') || '').trim();
+      if (!/\.apps\.googleusercontent\.com$/.test(id)) {
+        toast('Ese no parece un ID de cliente de Google (debe terminar en .apps.googleusercontent.com).', 'error');
+        return false;
+      }
+      if (id !== cfg.clientId) saveDriveConfig({ clientId: id, consented: null, fileId: null, monthly: null });
+      await handlers['drive-backup']();
+      render();
+    },
+  });
+};
 for (const k of ['set-theme', 'set-palette', 'set-text', 'home-move', 'home-reset', 'photo-remove', 'pin-setup', 'pin-remove', 'bio-on', 'bio-off']) handlers[k] = pz[k];
 
 /** Reduce una imagen a JPEG (fondo blanco) para el logo de los PDF. */
@@ -491,6 +545,37 @@ function imageToJpeg(file, maxSide) {
       reject(new Error('formato no reconocido'));
     };
     img.src = url;
+  });
+}
+
+/** Lista de precios en PDF (3.11): completa, o solo lo que compra un cliente. */
+function priceListForm(co) {
+  const s = S();
+  const active = s.products.filter((p) => p.companyId === co && p.active);
+  if (!active.length) return toast('No hay productos activos para la lista.', 'error');
+  const clients = s.clients.filter((c) => c.companyIds.includes(co) && c.status !== 'bloqueado').sort((a, b) => a.tradeName.localeCompare(b.tradeName, 'es'));
+  openModal({
+    title: 'Lista de precios en PDF',
+    subtitle: `${active.length} productos de ${esc(s.companies[co].name)}, con el diseño de tus cotizaciones.`,
+    body: `<div class="grid2">
+      ${field({ name: 'client', label: '¿Para quién?', type: 'select', value: '', full: true, options: [{ value: '', label: 'Lista general (sin nombre)' }, ...clients.map((c) => ({ value: c.id, label: c.tradeName }))] })}
+      ${field({ name: 'only', label: 'Solo los productos que ese cliente compra', type: 'checkbox', value: true, help: 'Si nunca te ha comprado, sale la lista completa a su nombre.' })}
+    </div>`,
+    submitText: 'Crear PDF',
+    onSubmit: async (fd) => {
+      const client = s.clients.find((c) => c.id === fd.get('client')) || null;
+      let items = null;
+      if (client && fd.get('only')) {
+        const ids = new Set(s.documents.filter((d) => d.clientId === client.id && d.companyId === co && d.kind !== 'cotizacion' && d.status !== 'anulada').flatMap((d) => d.lines.map((l) => l.productId)).filter(Boolean));
+        const bought = active.filter((p) => ids.has(p.id));
+        if (bought.length) items = bought;
+      }
+      const bytes = priceListPdf(s, co, { items, client });
+      const month = new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }).replace(' de ', '-');
+      const name = `Lista de precios ${s.companies[co].name}${client ? ` - ${client.tradeName}` : ''} ${month}.pdf`.replace(/[\\/:*?"<>|]/g, '');
+      const r = await sharePdf(bytes, name, client ? `Hola, te comparto la lista de precios de ${s.companies[co].name}.` : '');
+      if (r === 'downloaded') toast('Lista descargada');
+    },
   });
 }
 

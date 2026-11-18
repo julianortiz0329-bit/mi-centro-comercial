@@ -38,7 +38,7 @@ export function renderCommissions(params) {
         <li>Cada mes inicia un nuevo periodo; el historial anterior no cambia.</li>
       </ol></details>
       <div class="notice ${policy?.confirmed ? 'info' : 'warn'}">${policy?.confirmed ? `Política confirmada el ${formatDateTime(policy.confirmedAt)}. Ya puedes liquidar.` : 'Antes de liquidar comisiones definitivas, confirma que esta política coincide con lo acordado con Frutos del Nogal.'} ${policy?.confirmed ? '' : '<button class="btn btn-primary btn-small" data-act="confirm-policy" data-co="nogal">Confirmar política</button>'}</div>`;
-  return `<div class="page-head"><div><p class="eyebrow">Motor de comisiones</p><h1>Comisiones</h1></div></div>
+  return `<div class="page-head"><div><p class="eyebrow">Motor de comisiones</p><h1>Comisiones</h1></div><button class="btn btn-plain btn-small" data-act="nogal-import">${icon('file', { size: 16 })} Importar informe Nogal</button></div>
   <div class="tabs">${['puntazo', 'nogal'].map((c) => `<a href="#/comisiones?co=${c}&p=${period}" class="${co === c ? 'active' : ''}">${s.companies[c].icon} ${esc(s.companies[c].name)}</a>`).join('')}</div>
   <section class="panel"><h2>Reglas vigentes</h2>${rulesBox}<p class="muted small">Cada comisión guarda una copia de las reglas con que se calculó; un cambio de porcentaje no altera el historial.</p></section>
   ${co === 'nogal' && period !== 'todos' ? thresholdCard(thresholdStatus(s, 'nogal', period)) : ''}

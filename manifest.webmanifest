@@ -7,8 +7,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f5f5f3",
-  "theme_color": "#111111",
+  "background_color": "#f4f3ee",
+  "theme_color": "#3f6b55",
   "lang": "es-CO",
   "categories": [
     "business",

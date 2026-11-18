@@ -3,7 +3,7 @@
 // (WhatsApp, correo, Drive…) o se descargan.
 import { formatDate, formatDateTime, periodLabel, periodOf } from '../core/dates.js';
 import { formatCOP, formatPct } from '../core/money.js';
-import { dataUrlToBytes, PdfDoc, wrapText } from '../core/pdf.js';
+import { dataUrlToBytes, PdfDoc, textWidth, wrapText } from '../core/pdf.js';
 import { commissionSummary, thresholdStatus } from '../domain/commissions.js';
 import { computeLine } from '../domain/documents.js';
 import { periodMetrics } from '../domain/metrics.js';
@@ -12,17 +12,17 @@ import { COMMISSION_STATUSES } from '../domain/schema.js';
 const W = 595.28;
 const H = 841.89;
 const M = 40;
-// Colores del diseño Tinta (3.7) con el verde del logo Crecimiento (3.9).
-const INK = '#111111';
-const MUTED = '#575757';
-const BRAND = '#111111';
-const ACCENT = '#10b981';
-const MINT = '#6ee7b7';
-const GREEN = '#047857';
+// Colores del diseño Salvia (3.12): verde salvia profundo, hueso y verde claro.
+const INK = '#1f2a24';
+const MUTED = '#5f6b63';
+const BRAND = '#24453a';
+const ACCENT = '#3f6b55';
+const MINT = '#cfe7d6';
+const GREEN = '#3f6b55';
 const IVORY = '#ffffff';
-const LINE = '#e4e4e1';
-const SOFT = '#f2f2ef';
-const BAND_TXT = '#c9c9c4';
+const LINE = '#e3e1d8';
+const SOFT = '#f1f0ea';
+const BAND_TXT = '#c6d6cc';
 const money = formatCOP;
 const num = (v) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(v);
 
@@ -155,7 +155,7 @@ function sideBand(pdf, s, doc, client, { full }) {
     });
   };
   y += 8;
-  pdf.line(BX, y, BAND - BX, y, { color: '#2e2e2c', width: 0.6 });
+  pdf.line(BX, y, BAND - BX, y, { color: '#3a5c4c', width: 0.6 });
   block('CLIENTE', [client.legalName || client.tradeName, client.taxId ? `NIT / CC ${client.taxId}` : '', client.contactName, client.phone || client.whatsapp, [client.city, client.address].filter(Boolean).join(' · ')], { strong: true });
   block('FECHA', [formatDate(doc.date)]);
   if (doc.kind === 'cotizacion' && doc.validUntil) block('VÁLIDA HASTA', [formatDate(doc.validUntil)]);
@@ -368,3 +368,146 @@ export async function sharePdf(bytes, filename, text = '') {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return 'downloaded';
 }
+
+/**
+ * Lista de precios (3.11) con el mismo estilo de banda lateral de la cotización.
+ * `items`: productos a incluir (por defecto, todos los activos de la empresa).
+ * `client`: si se da, la lista sale a su nombre. Marca los precios que cambiaron
+ * en los últimos 45 días ("Bajó" / "Subió") para que el cliente lo vea de un vistazo.
+ */
+export function priceListPdf(s, companyId, { items = null, client = null, date = new Date().toISOString() } = {}) {
+  const pdf = new PdfDoc();
+  const pf = s.settings.companyProfiles?.[companyId] || {};
+  const co = s.companies[companyId];
+  const list = (items || s.products.filter((p) => p.companyId === companyId && p.active))
+    .slice()
+    .sort((a, b) => (a.category || 'zz').localeCompare(b.category || 'zz', 'es') || a.name.localeCompare(b.name, 'es'));
+  const month = periodLabel(periodOf(date)).replace(/^./, (c) => c.toUpperCase());
+  const recent = (p) => {
+    const h = (p.priceHistory || []).at(-1);
+    if (!h || Date.parse(date) - Date.parse(h.at) > 45 * 864e5 || h.from === h.to) return null;
+    return h.to < h.from ? 'Bajó' : 'Subió';
+  };
+
+  const band = (first) => {
+    pdf.rect(0, 0, BAND, H, { fill: BRAND });
+    let y = 44;
+    if (pf.logo?.dataUrl) {
+      const r = Math.min(BW / pf.logo.w, 56 / pf.logo.h);
+      const lw = pf.logo.w * r;
+      const lh = pf.logo.h * r;
+      pdf.roundRect(BX - 6, y - 6, lw + 12, lh + 12, 8, { fill: '#ffffff' });
+      pdf.image(dataUrlToBytes(pf.logo.dataUrl), pf.logo.w, pf.logo.h, BX, y, lw, lh);
+      y += lh + 26;
+    }
+    for (const t of wrapText(pf.legalName || co.name, BW, 12.5, true)) {
+      pdf.text(t, BX, y, { size: 12.5, bold: true, color: IVORY });
+      y += 15;
+    }
+    if (!first) return;
+    for (const line of [pf.nit ? `NIT ${pf.nit}` : '', pf.city, pf.phone, pf.email].filter(Boolean)) for (const t of wrapText(line, BW, 8)) {
+      pdf.text(t, BX, y + 1, { size: 8, color: BAND_TXT });
+      y += 11;
+    }
+    const block = (label, lines, strong = false) => {
+      y += 16;
+      pdf.text(label, BX, y, { size: 7, bold: true, color: MINT });
+      y += 13;
+      lines.filter(Boolean).forEach((line, i) => {
+        const b = strong && i === 0;
+        for (const t of wrapText(line, BW, b ? 10 : 8.5, b)) {
+          pdf.text(t, BX, y, { size: b ? 10 : 8.5, bold: b, color: b ? IVORY : BAND_TXT });
+          y += b ? 13 : 11;
+        }
+      });
+    };
+    y += 8;
+    pdf.line(BX, y, BAND - BX, y, { color: '#3a5c4c', width: 0.6 });
+    if (client) block('PREPARADA PARA', [client.legalName || client.tradeName, client.city], true);
+    block('VIGENCIA', [month, 'Sujeta a disponibilidad de inventario']);
+    if (s.settings.sellerName) block('TU ASESOR', [s.settings.sellerName, s.settings.sellerPhone || '']);
+    block('CÓMO LEERLA', ['Precio por presentación completa (caja, bulto o saco), antes y con IVA.', 'La última columna es el valor por kilo o unidad.']);
+  };
+
+  band(true);
+  pdf.text('Lista de precios', CX, 66, { size: 26, bold: true, color: INK });
+  pdf.text(month, CR, 66, { size: 9.5, color: MUTED, align: 'right' });
+  pdf.text(`${list.length} productos`, CR, 78, { size: 8.5, color: MUTED, align: 'right' });
+  let y = 100;
+  const cw = CR - CX;
+  const cols = [
+    { label: 'Producto', w: cw - 218 },
+    { label: 'Antes de IVA', w: 62, align: 'right' },
+    { label: 'IVA', w: 28, align: 'right' },
+    { label: 'Con IVA', w: 66, align: 'right' },
+    { label: 'Por kg/und', w: 62, align: 'right' },
+  ];
+  const newPage = () => {
+    pdf.addPage();
+    band(false);
+    pdf.text(`Lista de precios · ${month} (continuación)`, CX, 52, { size: 10, bold: true, color: INK });
+    return 72;
+  };
+  const head = () => {
+    pdf.rect(CX, y, cw, 18, { fill: SOFT });
+    let x = CX;
+    for (const c of cols) {
+      pdf.text(c.label, c.align === 'right' ? x + c.w - 4 : x + 4, y + 12, { size: 7.5, bold: true, color: MUTED, align: c.align === 'right' ? 'right' : 'left' });
+      x += c.w;
+    }
+    y += 22;
+  };
+  let cat;
+  for (const p of list) {
+    const name = wrapText(p.name, cols[0].w - 8, 9, true);
+    const h = name.length * 11 + 13;
+    const isNewCat = p.category !== cat;
+    if (y + h + (isNewCat ? 44 : 0) > H - 60) {
+      y = newPage();
+      if (!isNewCat) {
+        pdf.text(`${(cat || 'Otros').toUpperCase()} (sigue)`, CX, y + 8, { size: 8, bold: true, color: GREEN });
+        y += 14;
+        head();
+      }
+    }
+    if (isNewCat) {
+      cat = p.category;
+      if (y > 110) y += 8;
+      pdf.text((cat || 'Otros').toUpperCase(), CX, y + 8, { size: 8, bold: true, color: GREEN });
+      y += 14;
+      head();
+    }
+    const per = pricePerUnit(p);
+    const tag = recent(p);
+    name.forEach((t, k) => pdf.text(t, CX + 4, y + 9 + k * 11, { size: 9, bold: true, color: INK }));
+    pdf.text(p.presentation || '', CX + 4, y + 9 + name.length * 11, { size: 7.5, color: MUTED });
+    if (tag) {
+      // La etiqueta va en la línea de la presentación, que siempre es corta.
+      const tw = textW(tag, 6.5, true) + 10;
+      const tx = CX + 4 + textW(p.presentation || '', 7.5) + 6;
+      const ty = y + name.length * 11 + 1;
+      pdf.roundRect(tx, ty, tw, 10, 5, { fill: tag === 'Bajó' ? '#dff0e6' : '#f6ecd2' });
+      pdf.text(tag, tx + tw / 2, ty + 7.2, { size: 6.5, bold: true, color: tag === 'Bajó' ? '#2f7a55' : '#94650f', align: 'center' });
+    }
+    let x = CX + cols[0].w;
+    const vals = [money(p.price), `${num(p.ivaPct)} %`, money(Math.round(p.price * (1 + p.ivaPct / 100))), per ? `${money(per)}/${p.contentUnit === 'und' ? 'und' : 'kg'}` : '—'];
+    vals.forEach((v, i) => {
+      const c = cols[i + 1];
+      pdf.text(v, x + c.w - 4, y + 9, { size: 9, color: i === 2 ? INK : i === 3 ? MUTED : INK, bold: i === 2, align: 'right' });
+      x += c.w;
+    });
+    y += h;
+    pdf.line(CX, y - 2, CR, y - 2, { color: LINE, width: 0.4 });
+  }
+  const n = pdf.pages.length;
+  pdf.pages.forEach((_, i) => {
+    pdf.page = pdf.pages[i];
+    pdf.line(CX, H - 34, CR, H - 34, { color: LINE, width: 0.6 });
+    pdf.text(`Lista de precios ${co.name} · ${month}`, CX, H - 22, { size: 8, color: MUTED });
+    pdf.text(`Página ${i + 1} de ${n}`, CR, H - 22, { size: 8, color: MUTED, align: 'right' });
+  });
+  return pdf.output({ title: `Lista de precios ${co.name} ${month}` });
+}
+
+const pricePerUnit = (p) => (p.contentQty ? Math.round(p.price / p.contentQty) : null);
+const textW = (t, size, bold) => textWidth(t, size, bold);

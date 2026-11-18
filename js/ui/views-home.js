@@ -15,6 +15,7 @@ import { isActiveSale } from '../domain/ledger.js';
 import { lastOrderFor } from '../domain/pricing.js';
 import { userAvatar } from './personalize.js';
 import { heroDeco } from './motion.js';
+import { driveAgeDays, driveReady } from './drive.js';
 
 const S = () => getState();
 const coName = (id) => (id ? S().companies[id]?.name : 'General');
@@ -145,7 +146,9 @@ function actionCards(s, agenda, d, cos) {
     cards.push({ tone: 'violet', ic: 'repeat', kicker: 'Recuperar cliente', title: `${x.client.tradeName} no te compra`, text: `Hace <b>${x.daysNoPurchase} días</b>${lo ? ` · último pedido ${money(lo.totals.total)}` : ''}`, actions: `${lo ? `<button class="btn btn-primary btn-xs" data-act="repeat" data-doc="${lo.id}">Repetir pedido</button>` : ''}<button class="btn btn-wa btn-xs" data-act="wa" data-client="${x.client.id}" data-tpl="recuperacion">WhatsApp</button>` });
   }
   const lastB = s.settings.lastBackupAt;
-  if ((s.clients.length || s.documents.length) && (!lastB || diffDays(lastB.slice(0, 10), today) > 7)) cards.push({ tone: 'gray', ic: 'lock', kicker: 'Tus datos', title: 'Haz tu copia de seguridad', text: lastB ? `La última fue hace ${diffDays(lastB.slice(0, 10), today)} días.` : 'Aún no tienes ninguna. Toma 5 segundos.', actions: '<button class="btn btn-plain btn-xs" data-act="backup">Descargar copia</button>' });
+  const dAge = driveReady() ? driveAgeDays() : -1;
+  if ((s.clients.length || s.documents.length) && dAge !== -1 && (dAge === null || dAge >= 1)) cards.push({ tone: 'gray', ic: 'lock', kicker: 'Copia en Drive', title: dAge === null ? 'Haz tu primera copia en Drive' : 'Respalda tus datos de hoy', text: dAge === null ? 'Queda guardada en tu Google Drive.' : `La última fue hace ${dAge} día${dAge === 1 ? '' : 's'}.`, actions: '<button class="btn btn-primary btn-xs" data-act="drive-backup">Respaldar en Drive</button>' });
+  else if (dAge === -1 && (s.clients.length || s.documents.length) && (!lastB || diffDays(lastB.slice(0, 10), today) > 7)) cards.push({ tone: 'gray', ic: 'lock', kicker: 'Tus datos', title: 'Haz tu copia de seguridad', text: lastB ? `La última fue hace ${diffDays(lastB.slice(0, 10), today)} días.` : 'Aún no tienes ninguna. Toma 5 segundos.', actions: '<button class="btn btn-plain btn-xs" data-act="backup">Descargar copia</button>' });
   if (!cards.length) cards.push({ tone: 'green', ic: 'check', kicker: 'Todo en orden', title: 'Estás al día', text: 'No hay cobros vencidos ni pendientes urgentes. Buen momento para visitar o cotizar.', actions: '<button class="btn btn-primary btn-xs" data-act="new-doc" data-kind="cotizacion">Cotizar</button>' });
   return `<section class="actions-today" aria-label="Lo importante hoy"><div class="at-head"><h2>Lo importante hoy</h2><span class="at-count">${cards.length}</span></div>
     <div class="acards">${cards.map((c) => `<article class="acard t-${c.tone}"><div class="ac-top"><span class="ac-ico">${icon(c.ic, { size: 18 })}</span><small>${esc(c.kicker)}</small></div><h3>${esc(c.title)}</h3><p>${c.text}</p><div class="ac-actions">${c.actions}</div></article>`).join('')}</div></section>`;

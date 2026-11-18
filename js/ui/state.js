@@ -24,6 +24,9 @@ export const HOME_SECTIONS = {
 };
 export const DEFAULT_HOME = Object.keys(HOME_SECTIONS);
 export const PALETTES = {
+  salvia: { label: 'Salvia', hint: 'Verde salvia y hueso', swatch: ['#3f6b55', '#f4f3ee'] },
+  arena: { label: 'Arena', hint: 'Nogal, arena y crema', swatch: ['#7a5234', '#f7f2ea'] },
+  bruma: { label: 'Bruma', hint: 'Azul sereno y niebla', swatch: ['#3d5a8a', '#f3f5f9'] },
   tinta: { label: 'Tinta', hint: 'Hueso, negro y letra Bodoni', swatch: ['#111111', '#f5f5f3'] },
   nogal: { label: 'Esmeralda', hint: 'Blanco, azul marino y verde', swatch: ['#0f172a', '#10b981'] },
   clasico: { label: 'Nogal clásico', hint: 'Verde bosque y oro', swatch: ['#1f4d3e', '#b8893b'] },
@@ -48,8 +51,9 @@ export const ui = {
   lastCrmScope: ['puntazo', 'nogal', 'todas'].includes(p0.lastCrmScope) ? p0.lastCrmScope : 'todas',
   privacy: !!p0.privacy,
   theme: ['auto', 'light', 'dark'].includes(p0.theme) ? p0.theme : 'auto',
-  // 3.7: quien tenía Esmeralda por defecto pasa una vez a Tinta; si la vuelve a elegir, se respeta.
-  palette: !PALETTES[p0.palette] || (p0.palette === 'nogal' && !p0.v37) ? 'tinta' : p0.palette,
+  // 3.12: Salvia es el diseño principal. Quien venía con Tinta o Esmeralda pasa una vez a Salvia;
+  // si después escoge otra colección, se respeta.
+  palette: !PALETTES[p0.palette] || (['tinta', 'nogal'].includes(p0.palette) && !p0.v312) ? 'salvia' : p0.palette,
   text: ['normal', 'grande'].includes(p0.text) ? p0.text : 'normal',
   motion: p0.motion !== false,
   haptics: p0.haptics !== false,
@@ -70,7 +74,7 @@ export function setScope(scope) {
 export function savePrefs() {
   try {
     const { scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock } = ui;
-    localStorage.setItem(PREF, JSON.stringify({ v37: true, scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock }));
+    localStorage.setItem(PREF, JSON.stringify({ v37: true, v312: true, scope, lastCrmScope, privacy, theme, palette, text, motion, haptics, sound, oled, photo, homeOrder, homeHidden, lock }));
     return true;
   } catch {
     return false; // preferencia opcional (p. ej. almacenamiento lleno)

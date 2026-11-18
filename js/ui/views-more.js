@@ -11,6 +11,7 @@ import { listSnapshots, storageEstimate, storageMode } from '../store/persistenc
 import { getState } from '../store/store.js';
 import { empty, esc, money, pill, progress, stat } from './dom.js';
 import { ui } from './state.js';
+import { driveAgeDays, driveConfig, driveReady } from './drive.js';
 
 const S = () => getState();
 
@@ -54,6 +55,7 @@ export function renderProducts(params) {
   <div class="tabs">${ACTIVE_COMPANY_IDS.map((c) => `<a href="#/productos?co=${c}" class="${c === co ? 'active' : ''}">${s.companies[c].icon} ${esc(s.companies[c].name)} <span class="badge soft">${s.products.filter((p) => p.companyId === c).length}</span></a>`).join('')}</div>
   ${missing ? `<section class="panel highlight"><h2>🌰 Lista de precios de Frutos del Nogal</h2><p class="muted">Carga de una vez ${missing === 66 ? 'los 66 productos' : `los ${missing} productos que faltan`} de tu lista (presentación, kilos, precio antes de IVA e IVA). Después los puedes editar uno por uno. No duplica ni cambia los que ya existan.</p><button class="btn btn-primary" data-act="load-catalog">Cargar ${missing} producto(s)</button></section>` : ''}
   <div class="toolbar"><div class="search"><input type="search" id="prod-q" placeholder="Buscar producto, código o categoría" aria-label="Buscar productos"></div>
+    <button class="btn btn-plain btn-small" data-act="price-pdf" data-co="${co}">Lista de precios en PDF</button>
     <button class="btn btn-plain btn-small" data-act="share-prices" data-co="${co}">Enviar lista por WhatsApp</button>
     <button class="btn btn-plain btn-small" data-act="export" data-what="productos" data-co="${co}">Exportar CSV</button>
     <button class="btn btn-plain btn-small file-btn">Importar CSV<input type="file" accept=".csv,text/csv" data-import="products" data-co="${co}" aria-label="Importar productos"></button></div>
@@ -129,6 +131,8 @@ export async function renderData() {
   return `<div class="page-head"><div><p class="eyebrow"><a href="#/mas">Más</a></p><h1>Datos y copias de seguridad</h1></div></div>
   <div class="notice warn">Tus datos se guardan <b>solo en este dispositivo</b> (${storageMode() === 'indexeddb' ? 'IndexedDB' : 'almacenamiento local'}). No hay sincronización en la nube en esta versión. Si borras los datos del navegador o cambias de teléfono sin una copia, la información se pierde.</div>
   <div class="stats">${stat('Clientes', c.clientes)}${stat('Documentos', c.documentos)}${stat('Pagos', c.pagos)}${stat('Comisiones', c.comisiones)}${stat('Última copia', s.settings.lastBackupAt ? formatDate(s.settings.lastBackupAt) : 'Nunca', '', s.settings.lastBackupAt ? '' : 'warn')}${stat('Espacio usado', est?.usage ? `${(est.usage / 1048576).toFixed(1)} MB` : '—', est?.quota ? `de ${(est.quota / 1048576).toFixed(0)} MB disponibles` : '')}</div>
+  <section class="panel"><h2>Informe de Frutos del Nogal</h2><p class="muted">Sube el PDF de comisiones que te manda la empresa. La app lo compara con tus ventas y cobros y te muestra qué falta, antes de cambiar nada. Tú escoges la modalidad (0,4 % o 0,75 %) de cada factura.</p><div class="toolbar"><button class="btn btn-primary" data-act="nogal-import">Importar informe (PDF)</button></div></section>
+  ${drivePanel()}
   <section class="panel"><h2>Copia de seguridad</h2><p class="muted">Descarga un archivo con todos tus datos (incluye verificación de integridad). Guárdalo en Drive, correo o tu computador.</p><div class="toolbar"><button class="btn btn-primary" data-act="backup">Descargar copia completa</button><button class="btn btn-plain file-btn">Restaurar desde archivo<input type="file" accept=".json,application/json" data-import="backup" aria-label="Restaurar copia"></button></div><p class="muted small">Restaurar reemplaza los datos actuales; antes se guarda automáticamente una instantánea interna para poder deshacerlo. También acepta copias JSON de la versión 1.</p></section>
   <section class="panel"><h2>Instantáneas internas</h2><p class="muted small">Se crean al abrir la app (una por día), antes de restaurar y antes de borrar. Se conservan las 10 más recientes y la copia original de la versión 1.</p>${snaps.length ? `<ul class="simple">${snaps.map((x) => `<li>${formatDateTime(x.at)} · ${esc(x.reason)} · ${(x.size / 1024).toFixed(0)} KB <button class="btn btn-plain btn-xs" data-act="snap-restore" data-id="${x.id}">Restaurar</button> <button class="btn btn-plain btn-xs" data-act="snap-download" data-id="${x.id}">Descargar</button></li>`).join('')}</ul>` : '<p class="muted">Aún no hay instantáneas.</p>'}</section>
   <section class="panel"><h2>Importar</h2><p class="muted">Clientes desde CSV (Excel → Guardar como CSV UTF-8). Columnas reconocidas: nombre, razon_social, nit, contacto, telefono, whatsapp, correo, departamento, ciudad, direccion, categoria, empresa, plazo, observaciones. Los clientes que ya existen (mismo NIT, teléfono o nombre) se omiten: nunca se sobrescriben.</p><div class="toolbar"><select id="import-co" aria-label="Empresa por defecto">${ACTIVE_COMPANY_IDS.map((co) => `<option value="${co}" ${ui.scope === co ? 'selected' : ''}>Empresa por defecto: ${esc(s.companies[co].name)}</option>`).join('')}</select><button class="btn btn-plain file-btn">Importar clientes CSV<input type="file" accept=".csv,text/csv" data-import="clients" aria-label="Importar clientes"></button><button class="btn btn-plain" data-act="template" data-what="clientes">Plantilla de clientes</button></div></section>
@@ -193,4 +197,14 @@ export function renderHelp() {
   <h2>Instalar en Android</h2><p>Abre la app en Chrome (desde una dirección https) → menú ⋮ → "Instalar app" o "Agregar a pantalla principal". Funciona sin conexión.</p>
   <h2>Límites de esta versión</h2><ul><li>Sin cuenta de usuario ni sincronización en la nube: un dispositivo = una base de datos. Usa copias de seguridad para pasar datos entre teléfono y computador.</li><li>No emite factura electrónica DIAN; registra la referencia de tu factura real.</li><li>Los avisos solo aparecen con la app abierta.</li></ul>
   <p class="muted small">Mi Centro Comercial ${APP_VERSION} · Herramienta de gestión comercial. No reemplaza asesoría contable o tributaria.</p></section>`;
+}
+
+/** Panel de la copia en Google Drive (3.11). */
+function drivePanel() {
+  if (!driveReady()) {
+    return `<section class="panel"><h2>Copia en Google Drive</h2><p class="muted">Guarda tus datos en tu propio Google Drive con un toque, para no perder nada si el celular se daña o se pierde. Se configura una sola vez (unos 5 minutos).</p><div class="toolbar"><button class="btn btn-primary" data-act="drive-setup">Configurar Google Drive</button></div></section>`;
+  }
+  const age = driveAgeDays();
+  const at = driveConfig().lastAt;
+  return `<section class="panel"><h2>Copia en Google Drive</h2><p class="muted">${at ? `Última copia: <b>${formatDateTime(at)}</b>${age ? `, hace ${age} día${age === 1 ? '' : 's'}` : ''} ·` : 'Aún no has hecho ninguna copia en Drive.'} Queda en tu Drive como <b>Mi Centro Comercial - respaldo.json</b>, más una copia por mes.</p><div class="toolbar"><button class="btn btn-primary" data-act="drive-backup">Respaldar ahora en Drive</button><button class="btn btn-plain btn-small" data-act="drive-setup">Configuración</button></div></section>`;
 }
